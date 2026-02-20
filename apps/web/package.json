@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.4",
     "@repo/api": "workspace:^",
     "@repo/env": "workspace:*",
     "@repo/types": "workspace:*",

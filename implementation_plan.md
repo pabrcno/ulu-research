@@ -146,7 +146,7 @@ src/
 | # | Task | Description | Owner | Depends On |
 |---|---|---|---|---|
 | 0.1 | Init Turborepo | `pnpm create turbo`, configure `turbo.json` pipelines for build/dev/lint/typecheck | BE | — |
-| 0.2 | Shared types package | Zod schemas: `SearchQuery`, `ProductMetadata`, `PlatformProduct`, `PriceAnalysis`, `TrendReport`, `RegulationReport`, `MarketReport`, `OpportunityReport` | BE | 0.1 |
+| 0.2 | Shared types package | Zod schemas: `SearchQuery`, `ProductMetadata` (includes `regulatory_flags[]`, `import_regulations[]`, `impositive_regulations[]`), `PlatformProduct`, `PriceAnalysis`, `TrendReport`, `RegulationReport`, `MarketReport`, `OpportunityReport` | BE | 0.1 |
 | 0.3 | API scaffold | Fastify + tRPC, root router, context, health check `/ping` route | BE | 0.1 |
 | 0.4 | Web scaffold | React + Vite, tRPC client, TanStack Query provider, shadcn init (default theme) | FE | 0.1 |
 | 0.5 | `.env.example` | Document all variables — see Section 6. Only 4 API keys total | BE | 0.1 |
@@ -160,10 +160,11 @@ src/
 | # | Task | Description | Owner | Depends On |
 |---|---|---|---|---|
 | 1.1 | `claude.service.ts` | Anthropic SDK wrapper: `complete(system, user)` → typed JSON. Includes retry with exponential backoff. | BE | 0.3 |
-| 1.2 | `keyword-extractor.ts` | Prompt: given `raw_query` + country, return `{ product_name, hs_code, category, regulatory_flags[], market_terms[], trend_keywords[], normalized_query }`. Output parsed with Zod. | BE | 1.1 |
+| 1.2 | `keyword-extractor.ts` | Prompt: given `raw_query` + country, return `{ product_name, hs_code, category, regulatory_flags[], import_regulations[], impositive_regulations[], market_terms[], trend_keywords[], normalized_query }`. `regulatory_flags` = certifications (FCC, CE, RoHS). `import_regulations` = customs, permits, restrictions. `impositive_regulations` = tariffs, duties, VAT. Output parsed with Zod. | BE | 1.1 |
 | 1.3 | `geolocation.service.ts` | `GET ip-api.com/json/{ip}` → `{ country_code, country_name, city }`. Falls back to manual country input if IP lookup fails. | BE | 0.3 |
 | 1.4 | `search.router.ts` | tRPC procedure `search.initiate(raw_query)`: detects country, runs keyword extractor, persists session + `ProductMetadata`, returns both. | BE | 1.2, 1.3 |
 | 1.5 | `SearchBar.tsx` | Input + submit. Shows detected country badge. On success, stores `productMetadata` in component state and enables all downstream query hooks. | FE | 0.4, 1.4 |
+| 1.6 | `Research.tsx` metadata card | Displays `regulatory_flags`, `import_regulations`, `impositive_regulations` in separate sections alongside category, trend keywords, market terms. | FE | 0.4, 1.4 |
 
 ---
 
@@ -195,14 +196,14 @@ src/
 
 ### Phase 4 — Import Regulation Research (Tavily)
 
-> 5–6 targeted Tavily queries built from `hs_code` + `regulatory_flags[]` + `country_code`. Biased toward `.gov` and customs authority domains.
+> 5–6 targeted Tavily queries built from `hs_code` + `regulatory_flags[]` + `import_regulations[]` + `impositive_regulations[]` + `country_code`. Biased toward `.gov` and customs authority domains.
 
 | # | Task | Description | Owner | Depends On |
 |---|---|---|---|---|
 | 4.1 | `tavily.service.ts` | `search(queries[], options)` method. Supports `include_domains[]`, `search_depth`, `include_answer`. Returns `TavilyResult[][]`. | BE | 0.3 |
-| 4.2 | Regulation query builder | Builds 5 queries: HS tariff duty rate, required certifications, prohibited variants, labeling rules, licensing/quota. Each targets `.gov` domains via `include_domains`. | BE | 4.1, 1.2 |
+| 4.2 | Regulation query builder | Builds 5 queries: HS tariff duty rate, required certifications, prohibited variants, labeling rules, licensing/quota. Uses `regulatory_flags`, `import_regulations`, `impositive_regulations` from ProductMetadata. Each targets `.gov` domains via `include_domains`. | BE | 4.1, 1.2 |
 | 4.3 | Regulation LLM synthesis | Claude: parse all Tavily results into `RegulationReport` — `duty_rate_percent`, `required_certifications[]`, `prohibited_variants[]`, `labeling_requirements[]`, `sources[]`. Always includes disclaimer. | BE | 4.2, 1.1 |
-| 4.4 | `regulations.router.ts` | tRPC procedure `regulations.research(hs_code, regulatory_flags[], country_code)`: returns `RegulationReport`. | BE | 4.3 |
+| 4.4 | `regulations.router.ts` | tRPC procedure `regulations.research(hs_code, regulatory_flags[], import_regulations[], impositive_regulations[], country_code)`: returns `RegulationReport`. | BE | 4.3 |
 | 4.5 | `RegulationCard.tsx` | Duty rate highlighted. Certification badges. Prohibited variants as `Alert` destructive. Source links with domain labels. Disclaimer at bottom. Uses shadcn `Card`, `Badge`, `Alert`. | FE | 0.4, 4.4 |
 
 ---

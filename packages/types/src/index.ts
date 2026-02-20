@@ -17,6 +17,8 @@ export const ProductMetadataSchema = z.object({
   product_category: z.string(),
   hs_code: z.string(),
   regulatory_flags: z.array(z.string()),
+  import_regulations: z.array(z.string()),
+  impositive_regulations: z.array(z.string()),
   market_search_terms: z.array(z.string()),
   trend_keywords: z.array(z.string()).min(1).max(5),
   normalized_query: z.string(),
@@ -187,6 +189,28 @@ export const OpportunityReportSchema = z.object({
   overall_verdict: z.string(),
 });
 export type OpportunityReport = z.infer<typeof OpportunityReportSchema>;
+
+// ─── Sourcing Search I/O ────────────────────────────────────────────
+
+export const SourcingSearchInputSchema = z.object({
+  normalized_query: z.string().min(1),
+});
+export type SourcingSearchInput = z.infer<typeof SourcingSearchInputSchema>;
+
+export const PlatformResultsSchema = z.object({
+  alibaba: z.array(PlatformProductSchema),
+  amazon: z.array(PlatformProductSchema),
+  ebay: z.array(PlatformProductSchema),
+  walmart: z.array(PlatformProductSchema),
+  google_shopping: z.array(PlatformProductSchema),
+});
+export type PlatformResults = z.infer<typeof PlatformResultsSchema>;
+
+export const SourcingSearchResponseSchema = z.object({
+  platforms: PlatformResultsSchema,
+  price_analysis: PriceAnalysisSchema,
+});
+export type SourcingSearchResponse = z.infer<typeof SourcingSearchResponseSchema>;
 
 // ─── Geolocation ───────────────────────────────────────────────────
 

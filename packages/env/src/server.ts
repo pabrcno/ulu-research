@@ -1,5 +1,15 @@
+import { config } from "dotenv";
+import { resolve } from "path";
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
+
+// Load .env from cwd or monorepo root (when running from apps/api)
+config({
+  path: [
+    resolve(process.cwd(), ".env"),
+    resolve(process.cwd(), "../../.env"),
+  ],
+});
 
 export const env = createEnv({
   server: {
