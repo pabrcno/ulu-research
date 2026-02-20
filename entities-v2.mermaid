@@ -1,0 +1,221 @@
+erDiagram
+
+    %% ─── CORE USER ───────────────────────────────────────────────
+    USER {
+        uuid        id
+        string      ip_address
+        string      country_code
+        string      country_name
+        string      city
+        string      timezone
+        timestamp   created_at
+        timestamp   last_active
+    }
+
+    %% ─── SEARCH SESSION ──────────────────────────────────────────
+    SEARCH_SESSION {
+        uuid        id
+        uuid        user_id
+        string      raw_query
+        string      normalized_query
+        string      status
+        timestamp   created_at
+        timestamp   completed_at
+    }
+
+    %% ─── LLM EXTRACTED METADATA ──────────────────────────────────
+    PRODUCT_METADATA {
+        uuid        id
+        uuid        session_id
+        string      product_name
+        string      product_category
+        string      hs_code
+        string[]    regulatory_flags
+        string[]    market_search_terms
+        string[]    trend_keywords
+        float       extraction_confidence
+        timestamp   created_at
+    }
+
+    %% ─── PLATFORM SOURCING ───────────────────────────────────────
+    %% One row per platform per session
+    PLATFORM_SEARCH {
+        uuid        id
+        uuid        session_id
+        string      platform
+        string      query
+        string      engine
+        string      domain
+        timestamp   fetched_at
+    }
+
+    %% One row per product listing returned by SerpApi
+    PLATFORM_PRODUCT {
+        uuid        id
+        uuid        platform_search_id
+        string      platform
+        string      external_id
+        string      title
+        float       price_raw
+        string      price_formatted
+        string      currency
+        string      price_type
+        int         moq
+        string      unit
+        float       rating
+        int         review_count
+        string      seller_name
+        boolean     is_verified
+        string      product_url
+        string      image_url
+        string      condition
+        timestamp   fetched_at
+    }
+
+    %% LLM cross-platform price synthesis
+    PRICE_ANALYSIS {
+        uuid        id
+        uuid        session_id
+        float       wholesale_floor
+        float       retail_ceiling
+        string      currency
+        float       gross_margin_pct_min
+        float       gross_margin_pct_max
+        string      best_source_platform
+        string      arbitrage_signal
+        string      summary
+        timestamp   created_at
+    }
+
+    %% ─── SERPAPI TRENDS MODULE ───────────────────────────────────
+    TREND_REPORT {
+        uuid        id
+        uuid        session_id
+        string      keyword
+        string      geo
+        string      date_range
+        float       trend_score
+        string      trend_direction
+        string      peak_month
+        boolean     is_seasonal
+        timestamp   fetched_at
+    }
+
+    TREND_TIMESERIES {
+        uuid        id
+        uuid        trend_report_id
+        date        week_start
+        int         interest_value
+    }
+
+    TREND_REGION {
+        uuid        id
+        uuid        trend_report_id
+        string      region_name
+        string      region_code
+        int         interest_value
+    }
+
+    TREND_QUERY {
+        uuid        id
+        uuid        trend_report_id
+        string      query_text
+        string      type
+        string      value
+    }
+
+    TREND_TOPIC {
+        uuid        id
+        uuid        trend_report_id
+        string      topic_title
+        string      topic_type
+        string      type
+        string      value
+    }
+
+    %% ─── TAVILY REGULATION MODULE ────────────────────────────────
+    REGULATION_REPORT {
+        uuid        id
+        uuid        session_id
+        string      country_code
+        string      hs_code
+        float       duty_rate_percent
+        string[]    required_certifications
+        string[]    prohibited_variants
+        string[]    labeling_requirements
+        string      quota_info
+        string      licensing_info
+        string      summary
+        timestamp   fetched_at
+    }
+
+    REGULATION_SOURCE {
+        uuid        id
+        uuid        regulation_report_id
+        string      title
+        string      url
+        string      domain
+        string      snippet
+        float       relevance_score
+    }
+
+    %% ─── TAVILY MARKET MODULE ────────────────────────────────────
+    MARKET_REPORT {
+        uuid        id
+        uuid        session_id
+        string      country_code
+        string      competition_level
+        string[]    top_competitors
+        string[]    top_channels
+        string      positioning_tip
+        string      summary
+        timestamp   fetched_at
+    }
+
+    MARKET_SOURCE {
+        uuid        id
+        uuid        market_report_id
+        string      title
+        string      url
+        string      domain
+        string      snippet
+        float       relevance_score
+    }
+
+    %% ─── OPPORTUNITY FUSION ──────────────────────────────────────
+    OPPORTUNITY_REPORT {
+        uuid        id
+        uuid        session_id
+        int         opportunity_score
+        float       estimated_margin_pct
+        string      best_source_platform
+        string      best_launch_month
+        string[]    keyword_gaps
+        string[]    variant_suggestions
+        string[]    risk_flags
+        string      overall_verdict
+        timestamp   created_at
+    }
+
+    %% ─── RELATIONSHIPS ───────────────────────────────────────────
+
+    USER                ||--o{ SEARCH_SESSION       : "initiates"
+    SEARCH_SESSION      ||--||  PRODUCT_METADATA    : "extracts via LLM"
+
+    SEARCH_SESSION      ||--o{ PLATFORM_SEARCH      : "spawns one per platform"
+    PLATFORM_SEARCH     ||--o{ PLATFORM_PRODUCT     : "returns listings"
+    SEARCH_SESSION      ||--||  PRICE_ANALYSIS      : "synthesizes via LLM"
+
+    SEARCH_SESSION      ||--||  TREND_REPORT        : "generates"
+    TREND_REPORT        ||--o{ TREND_TIMESERIES     : "contains"
+    TREND_REPORT        ||--o{ TREND_REGION         : "contains"
+    TREND_REPORT        ||--o{ TREND_QUERY          : "contains"
+    TREND_REPORT        ||--o{ TREND_TOPIC          : "contains"
+
+    SEARCH_SESSION      ||--||  REGULATION_REPORT   : "generates"
+    REGULATION_REPORT   ||--o{ REGULATION_SOURCE    : "cites"
+
+    SEARCH_SESSION      ||--||  MARKET_REPORT       : "generates"
+    MARKET_REPORT       ||--o{ MARKET_SOURCE        : "cites"
+
+    SEARCH_SESSION      ||--||  OPPORTUNITY_REPORT  : "synthesizes from all reports"

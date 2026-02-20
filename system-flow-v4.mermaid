@@ -1,0 +1,104 @@
+flowchart TD
+    User(["👤 User"])
+
+    subgraph INPUT["INPUT LAYER"]
+        A["Search Query\ne.g. 'wireless earbuds'"]
+        B["User Country Detection\nIP Geolocation / Manual\n→ drives geo= on all calls"]
+    end
+
+    subgraph LLM_EXTRACT["🧠 LLM KEYWORD EXTRACTION — Claude"]
+        C["Extract Product Metadata\n────────────────\n• Product Category\n• HS Tariff Code\n• Regulatory Flags  FCC · CE · RoHS\n• Market Search Terms\n• Trend Keywords  1–5 terms\n• Normalized Search String"]
+    end
+
+    subgraph PARALLEL["PARALLEL EXECUTION  —  single SERPAPI_API_KEY"]
+        direction LR
+
+        subgraph SOURCING["💰 MULTI-PLATFORM SOURCING  —  SerpApi"]
+            direction TB
+
+            P1["engine=alibaba\nkeywords · page_size\n────────────────\nWholesale · MOQ pricing\nManufacturer suppliers\nBulk unit costs"]
+
+            P2["engine=amazon\nkeywords · amazon_domain\n────────────────\nRetail reference prices\nBrand landscape\nReview volume signals"]
+
+            P3["engine=ebay\nkeywords · ebay_domain\n────────────────\nSecondary market prices\nLot / bulk listings\nCondition variants"]
+
+            P4["engine=walmart\nkeywords\n────────────────\nMass retail pricing\nUS market baseline\nPrivate label signals"]
+
+            P5["engine=google_shopping\nq · location · gl\n────────────────\nCross-platform price index\nLocal availability\nSponsor vs organic"]
+
+            PRICE_LLM["🧠 Price Synthesis — Claude\n────────────────\n• Wholesale floor price  Alibaba\n• Retail ceiling price  Amazon · Walmart\n• Gross margin range %\n• Price position per platform\n• Arbitrage signals"]
+
+            P1 & P2 & P3 & P4 & P5 --> PRICE_LLM
+        end
+
+        subgraph TRENDS_COL["📈 TRENDS — SerpApi"]
+            direction TB
+
+            T1["engine=google_trends\ndata_type=TIMESERIES\ngeo=USER_COUNTRY\ndate=today 12-m\n→ interest_over_time  0–100"]
+            T2["data_type=GEO_MAP\n→ regional hotspots"]
+            T3["data_type=RELATED_QUERIES\n→ rising · top queries"]
+            T4["data_type=RELATED_TOPICS\n→ rising · top topics"]
+
+            TREND_LLM["🧠 Trend Synthesis — Claude\n────────────────\n• Direction  ↑ ↗ → ↘ ↓\n• Seasonality + peak month\n• Breakout rising queries\n• Regional demand hotspots\n• Trend score  0–100"]
+
+            T1 --> T2 --> T3 --> T4 --> TREND_LLM
+        end
+
+        subgraph REGULATION["🌍 IMPORT REGULATIONS — Tavily"]
+            direction TB
+            R1["Targeted queries built from\nHS code · regulatory_flags[]\n────────────────\n• Tariff + duty rate\n• Required certifications\n• Prohibited variants\n• Labeling requirements\n• Licensing + quotas"]
+            R2["🧠 Regulation Synthesis — Claude\nStructured card + citations\nfrom official .gov domains"]
+            R1 --> R2
+        end
+
+        subgraph MARKET["📊 MARKET RESEARCH — Tavily"]
+            direction TB
+            M1["Targeted queries from\nmarket_terms[] + country\n────────────────\n• Local competitors\n• Demand landscape\n• Best sales channels\n• Consumer sentiment"]
+            M2["🧠 Market Synthesis — Claude\nCompetition level · channels\npositioning · summary"]
+            M1 --> M2
+        end
+    end
+
+    subgraph FUSION["🔀 OPPORTUNITY FUSION — Claude"]
+        F["Cross-signal synthesis\n────────────────\nPlatform prices + Trends + Market + Regulations\n→ Opportunity Score  0–100\n→ Best wholesale platform to source from\n→ Estimated margin %  wholesale → retail\n→ Best launch month\n→ Keyword + variant gaps\n→ Risk flags  margin squeeze · declining trend · compliance blocker"]
+    end
+
+    subgraph OUTPUT["📋 RESEARCH DASHBOARD"]
+        O1["💰 Sourcing Panel\nPrice comparison across platforms\nAlibaba wholesale floor · Amazon · eBay · Walmart retail ceiling\nMargin range · Best source"]
+        O2["📈 Trends Panel\nTimeseries chart · Regional heatmap\nRising queries · Trend score"]
+        O3["🌍 Regulation Card\nDuty rate · Certifications\nRestrictions · Gov source citations"]
+        O4["📊 Market Report\nCompetitor landscape · Channels\nPositioning · Summary"]
+        O5["🎯 Opportunity Report\nScore · Margin estimate\nBest platform · Launch timing\nRisk flags · Variant suggestions"]
+    end
+
+    User --> A & B
+    A & B --> C
+
+    C -->|"normalized search string"| P1 & P2 & P3 & P4 & P5
+    C -->|"trend keywords · geo"| T1
+    C -->|"hs_code · flags · country"| R1
+    C -->|"market terms · country"| M1
+
+    PRICE_LLM --> O1
+    PRICE_LLM --> F
+    TREND_LLM --> O2
+    TREND_LLM --> F
+    R2 --> O3
+    R2 --> F
+    M2 --> O4
+    M2 --> F
+
+    F --> O5
+
+    O1 & O2 & O3 & O4 & O5 --> User
+
+    style INPUT fill:#1e293b,stroke:#334155,color:#e2e8f0
+    style LLM_EXTRACT fill:#312e81,stroke:#4338ca,color:#e0e7ff
+    style PARALLEL fill:#0a0f1e,stroke:#1e293b,color:#e2e8f0
+    style SOURCING fill:#064e3b,stroke:#059669,color:#d1fae5
+    style TRENDS_COL fill:#134e4a,stroke:#0d9488,color:#ccfbf1
+    style REGULATION fill:#7c2d12,stroke:#ea580c,color:#ffedd5
+    style MARKET fill:#1e3a5f,stroke:#3b82f6,color:#dbeafe
+    style FUSION fill:#3b0764,stroke:#a855f7,color:#f3e8ff
+    style OUTPUT fill:#1f2937,stroke:#374151,color:#f9fafb
+    style User fill:#0f172a,stroke:#6366f1,color:#e0e7ff

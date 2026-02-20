@@ -1,0 +1,29 @@
+{
+  "name": "@repo/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./trpc": "./src/router.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39",
+    "@trpc/server": "^11.0.0-rc.730",
+    "fastify": "^5.2",
+    "@fastify/cors": "^11",
+    "zod": "^3.24",
+    "@repo/types": "workspace:*",
+    "@repo/env": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "tsx": "^4.19",
+    "@types/node": "^22"
+  }
+}
