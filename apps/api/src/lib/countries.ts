@@ -65,3 +65,76 @@ const COUNTRY_NAMES: Record<string, string> = {
 export function getCountryName(code: string): string {
   return COUNTRY_NAMES[code] ?? code;
 }
+
+// Map country codes to primary language codes (ISO 639-1)
+const COUNTRY_LANGUAGES: Record<string, { code: string; name: string }> = {
+  AE: { code: "ar", name: "Arabic" },
+  AR: { code: "es", name: "Spanish" },
+  AT: { code: "de", name: "German" },
+  AU: { code: "en", name: "English" },
+  BE: { code: "nl", name: "Dutch" },
+  BD: { code: "bn", name: "Bengali" },
+  BG: { code: "bg", name: "Bulgarian" },
+  BR: { code: "pt", name: "Portuguese" },
+  CA: { code: "en", name: "English" },
+  CH: { code: "de", name: "German" },
+  CL: { code: "es", name: "Spanish" },
+  CN: { code: "zh", name: "Chinese" },
+  CO: { code: "es", name: "Spanish" },
+  CZ: { code: "cs", name: "Czech" },
+  DE: { code: "de", name: "German" },
+  DK: { code: "da", name: "Danish" },
+  EE: { code: "et", name: "Estonian" },
+  EG: { code: "ar", name: "Arabic" },
+  ES: { code: "es", name: "Spanish" },
+  FI: { code: "fi", name: "Finnish" },
+  FR: { code: "fr", name: "French" },
+  GB: { code: "en", name: "English" },
+  GR: { code: "el", name: "Greek" },
+  HK: { code: "zh", name: "Chinese" },
+  HR: { code: "hr", name: "Croatian" },
+  HU: { code: "hu", name: "Hungarian" },
+  ID: { code: "id", name: "Indonesian" },
+  IE: { code: "en", name: "English" },
+  IL: { code: "he", name: "Hebrew" },
+  IN: { code: "hi", name: "Hindi" },
+  IT: { code: "it", name: "Italian" },
+  JP: { code: "ja", name: "Japanese" },
+  KE: { code: "sw", name: "Swahili" },
+  KR: { code: "ko", name: "Korean" },
+  LT: { code: "lt", name: "Lithuanian" },
+  LV: { code: "lv", name: "Latvian" },
+  LK: { code: "si", name: "Sinhala" },
+  MY: { code: "ms", name: "Malay" },
+  MX: { code: "es", name: "Spanish" },
+  NL: { code: "nl", name: "Dutch" },
+  NG: { code: "en", name: "English" },
+  NO: { code: "no", name: "Norwegian" },
+  NZ: { code: "en", name: "English" },
+  PE: { code: "es", name: "Spanish" },
+  PH: { code: "tl", name: "Tagalog" },
+  PK: { code: "ur", name: "Urdu" },
+  PL: { code: "pl", name: "Polish" },
+  PT: { code: "pt", name: "Portuguese" },
+  RO: { code: "ro", name: "Romanian" },
+  RU: { code: "ru", name: "Russian" },
+  SA: { code: "ar", name: "Arabic" },
+  SE: { code: "sv", name: "Swedish" },
+  SG: { code: "en", name: "English" },
+  SI: { code: "sl", name: "Slovenian" },
+  SK: { code: "sk", name: "Slovak" },
+  TH: { code: "th", name: "Thai" },
+  TW: { code: "zh", name: "Chinese" },
+  TR: { code: "tr", name: "Turkish" },
+  US: { code: "en", name: "English" },
+  VN: { code: "vi", name: "Vietnamese" },
+  ZA: { code: "en", name: "English" },
+};
+
+export function getCountryLanguage(countryCode: string): { code: string; name: string } {
+  return COUNTRY_LANGUAGES[countryCode] ?? { code: "en", name: "English" };
+}
+
+export function isEnglishPrimary(countryCode: string): boolean {
+  return getCountryLanguage(countryCode).code === "en";
+}

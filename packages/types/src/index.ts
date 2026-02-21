@@ -132,6 +132,10 @@ export const TrendReportSchema = z.object({
   regions: z.array(TrendRegionSchema),
   rising_queries: z.array(TrendQuerySchema),
   rising_topics: z.array(TrendTopicSchema),
+  original_keyword: z.string().optional(),
+  translated_keyword: z.string().optional(),
+  language_code: z.string().optional(),
+  language_name: z.string().optional(),
 });
 export type TrendReport = z.infer<typeof TrendReportSchema>;
 

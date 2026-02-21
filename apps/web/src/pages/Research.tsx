@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "../trpc";
 import { SearchBar } from "../components/SearchBar";
 import { SourcingPanel } from "../components/SourcingPanel";
+import { TrendsPanel } from "../components/TrendsPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -197,8 +198,14 @@ export function Research() {
               enabled={!!meta}
             />
 
+            <TrendsPanel
+              trendKeywords={meta.trend_keywords}
+              countryCode={session.geolocation.country_code}
+              enabled={!!meta}
+            />
+
             <p className="text-sm text-muted-foreground text-center">
-              Trends, regulations, and market panels will appear here in Phase 3–5.
+              Regulations and market panels will appear here in Phase 4–5.
             </p>
           </div>
         )}

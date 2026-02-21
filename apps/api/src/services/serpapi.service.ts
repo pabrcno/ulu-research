@@ -280,3 +280,61 @@ export async function searchGoogleShoppingLocal(
     return [];
   }
 }
+
+// ─── Google Trends (4 data types in parallel) ──────────────────────
+
+export interface TrendsRawData {
+  timeseries: Record<string, any>;
+  geoMap: Record<string, any>;
+  relatedQueries: Record<string, any>;
+  relatedTopics: Record<string, any>;
+}
+
+export async function getTrends(
+  keyword: string,
+  geo: string,
+  languageCode?: string,
+): Promise<TrendsRawData> {
+  const dateRange = env.SERPAPI_TRENDS_DATE || "today 12-m";
+
+  const dataTypes = ["TIMESERIES", "GEO_MAP", "RELATED_QUERIES", "RELATED_TOPICS"] as const;
+
+  try {
+    const results = await Promise.all(
+      dataTypes.map((dataType) => {
+        const params: SerpApiParams = {
+          engine: "google_trends",
+          q: keyword,
+          data_type: dataType,
+          geo: geo.toUpperCase(),
+          date: dateRange,
+        };
+
+        // Add language parameter if provided (e.g., "es", "fr", "de")
+        if (languageCode && languageCode !== "en") {
+          params.hl = languageCode;
+        }
+
+        return callSerpApi(params).catch((err) => {
+          console.error(`SerpApi Google Trends ${dataType} failed:`, err);
+          return {};
+        });
+      }),
+    );
+
+    return {
+      timeseries: results[0] ?? {},
+      geoMap: results[1] ?? {},
+      relatedQueries: results[2] ?? {},
+      relatedTopics: results[3] ?? {},
+    };
+  } catch (err) {
+    console.error("Google Trends search failed:", err);
+    return {
+      timeseries: {},
+      geoMap: {},
+      relatedQueries: {},
+      relatedTopics: {},
+    };
+  }
+}
