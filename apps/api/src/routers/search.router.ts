@@ -39,7 +39,7 @@ export const searchRouter = router({
         session_id: sessionId,
       };
 
-      saveSessionData(sessionId, "product_metadata", meta);
+      await saveSessionData(sessionId, "product_metadata", meta);
 
       return {
         session_id: sessionId,

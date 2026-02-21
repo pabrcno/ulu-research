@@ -43,7 +43,7 @@ export const marketRouter = router({
       const report = await synthesizeMarketReport(country_code, tavilyResults);
 
       if (input.session_id) {
-        saveSessionData(input.session_id, "market", report);
+        await saveSessionData(input.session_id, "market", report);
       }
 
       console.log(`[Market] Report ready: ${report.summary.slice(0, 80)}...`);

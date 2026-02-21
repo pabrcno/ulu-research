@@ -1,42 +1,38 @@
-import Database from "better-sqlite3";
-import { join } from "node:path";
-import { mkdirSync, existsSync } from "node:fs";
+import { neon } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
+import { env } from "@repo/env/server";
 
-const DATA_DIR = join(process.cwd(), "data");
-const DB_PATH = join(DATA_DIR, "opportunity-assessments.db");
+const sql = neon(env.DATABASE_URL);
 
-let db: Database.Database | null = null;
+let schemaInitialized = false;
 
-function getDb(): Database.Database {
-  if (db) return db;
+async function ensureSchema(): Promise<void> {
+  if (schemaInitialized) return;
 
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  db = new Database(DB_PATH);
-
-  db.exec(`
+  await sql`
     CREATE TABLE IF NOT EXISTS assessments (
       id TEXT PRIMARY KEY,
       session_id TEXT UNIQUE NOT NULL,
       context_json TEXT NOT NULL,
       report_json TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_assessments_session ON assessments(session_id);
+      created_at BIGINT NOT NULL
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_assessments_session ON assessments(session_id)
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS session_data (
       session_id TEXT NOT NULL,
       data_type TEXT NOT NULL,
       data_json TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
+      created_at BIGINT NOT NULL,
       PRIMARY KEY (session_id, data_type)
-    );
-  `);
+    )
+  `;
 
-  return db;
+  schemaInitialized = true;
 }
 
 export type SessionDataType =
@@ -47,37 +43,44 @@ export type SessionDataType =
   | "impositive"
   | "market";
 
-export function saveSessionData(
+export async function saveSessionData(
   sessionId: string,
   dataType: SessionDataType,
   data: unknown,
-): void {
-  const stmt = getDb().prepare(
-    "INSERT OR REPLACE INTO session_data (session_id, data_type, data_json, created_at) VALUES (?, ?, ?, ?)",
-  );
-  stmt.run(sessionId, dataType, JSON.stringify(data), Date.now());
+): Promise<void> {
+  await ensureSchema();
+  const now = Date.now();
+  await sql`
+    INSERT INTO session_data (session_id, data_type, data_json, created_at)
+    VALUES (${sessionId}, ${dataType}, ${JSON.stringify(data)}, ${now})
+    ON CONFLICT (session_id, data_type)
+    DO UPDATE SET data_json = ${JSON.stringify(data)}, created_at = ${now}
+  `;
 }
 
-export function getSessionData(
+export async function getSessionData(
   sessionId: string,
   dataType: SessionDataType,
-): unknown | null {
-  const stmt = getDb().prepare(
-    "SELECT data_json FROM session_data WHERE session_id = ? AND data_type = ?",
-  );
-  const row = stmt.get(sessionId, dataType) as { data_json: string } | undefined;
+): Promise<unknown | null> {
+  await ensureSchema();
+  const rows = await sql`
+    SELECT data_json FROM session_data
+    WHERE session_id = ${sessionId} AND data_type = ${dataType}
+  `;
+  const row = rows[0] as { data_json: string } | undefined;
   return row ? JSON.parse(row.data_json) : null;
 }
 
-export function getAllSessionData(
+export async function getAllSessionData(
   sessionId: string,
-): Record<string, unknown> {
-  const stmt = getDb().prepare(
-    "SELECT data_type, data_json FROM session_data WHERE session_id = ?",
-  );
-  const rows = stmt.all(sessionId) as Array<{ data_type: string; data_json: string }>;
+): Promise<Record<string, unknown>> {
+  await ensureSchema();
+  const rows = await sql`
+    SELECT data_type, data_json FROM session_data
+    WHERE session_id = ${sessionId}
+  `;
   const result: Record<string, unknown> = {};
-  for (const row of rows) {
+  for (const row of rows as Array<{ data_type: string; data_json: string }>) {
     result[row.data_type] = JSON.parse(row.data_json);
   }
   return result;
@@ -91,24 +94,35 @@ export interface StoredAssessment {
   created_at: number;
 }
 
-export function getAssessmentBySessionId(sessionId: string): StoredAssessment | null {
-  const stmt = getDb().prepare(
-    "SELECT id, session_id, context_json, report_json, created_at FROM assessments WHERE session_id = ?",
-  );
-  const row = stmt.get(sessionId) as StoredAssessment | undefined;
+export async function getAssessmentBySessionId(
+  sessionId: string,
+): Promise<StoredAssessment | null> {
+  await ensureSchema();
+  const rows = await sql`
+    SELECT id, session_id, context_json, report_json, created_at
+    FROM assessments
+    WHERE session_id = ${sessionId}
+  `;
+  const row = rows[0] as StoredAssessment | undefined;
   return row ?? null;
 }
 
-export function saveAssessment(
+export async function saveAssessment(
   sessionId: string,
   contextJson: string,
   reportJson: string,
-): void {
+): Promise<void> {
+  await ensureSchema();
   const id = randomUUID();
   const createdAt = Date.now();
 
-  const stmt = getDb().prepare(
-    "INSERT OR REPLACE INTO assessments (id, session_id, context_json, report_json, created_at) VALUES (?, ?, ?, ?, ?)",
-  );
-  stmt.run(id, sessionId, contextJson, reportJson, createdAt);
+  await sql`
+    INSERT INTO assessments (id, session_id, context_json, report_json, created_at)
+    VALUES (${id}, ${sessionId}, ${contextJson}, ${reportJson}, ${createdAt})
+    ON CONFLICT (session_id)
+    DO UPDATE SET
+      context_json = ${contextJson},
+      report_json = ${reportJson},
+      created_at = ${createdAt}
+  `;
 }

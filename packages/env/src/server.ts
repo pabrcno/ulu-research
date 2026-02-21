@@ -39,6 +39,9 @@ export const env = createEnv({
       .default("true")
       .transform((v) => v === "true"),
 
+    // Database (Neon Postgres)
+    DATABASE_URL: z.string().url(),
+
     // Server
     PORT: z.coerce.number().int().positive().default(3001),
     NODE_ENV: z

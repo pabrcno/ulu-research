@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@repo/web",
+  "installCommand": "cd ../.. && pnpm install",
+  "framework": "vite"
+}

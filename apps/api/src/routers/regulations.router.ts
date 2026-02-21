@@ -79,7 +79,7 @@ export const regulationsRouter = router({
       );
 
       if (session_id) {
-        saveSessionData(session_id, "regulation", report);
+        await saveSessionData(session_id, "regulation", report);
       }
 
       console.log(`[Compliance] Report ready: ${report.summary.slice(0, 80)}...`);
@@ -146,7 +146,7 @@ export const regulationsRouter = router({
       );
 
       if (session_id) {
-        saveSessionData(session_id, "impositive", report);
+        await saveSessionData(session_id, "impositive", report);
       }
 
       console.log(`[Impositive] Report ready: ${report.tax_summary.slice(0, 80)}...`);

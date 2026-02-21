@@ -15,8 +15,8 @@ export const opportunityRouter = router({
   get: publicProcedure
     .input(z.object({ session_id: z.string().uuid() }))
     .output(OpportunityReportSchema.nullable())
-    .query(({ input }) => {
-      const stored = getAssessmentBySessionId(input.session_id);
+    .query(async ({ input }) => {
+      const stored = await getAssessmentBySessionId(input.session_id);
       if (!stored) return null;
       return JSON.parse(stored.report_json) as z.infer<typeof OpportunityReportSchema>;
     }),
@@ -27,12 +27,12 @@ export const opportunityRouter = router({
     .mutation(async ({ input }) => {
       const { session_id } = input;
 
-      const cached = getAssessmentBySessionId(session_id);
+      const cached = await getAssessmentBySessionId(session_id);
       if (cached) {
         return JSON.parse(cached.report_json) as z.infer<typeof OpportunityReportSchema>;
       }
 
-      const data = getAllSessionData(session_id);
+      const data = await getAllSessionData(session_id);
 
       if (!data.product_metadata || !data.sourcing) {
         throw new TRPCError({
@@ -70,7 +70,7 @@ export const opportunityRouter = router({
 
       const contextJson = JSON.stringify(context);
       const reportJson = JSON.stringify(report);
-      saveAssessment(session_id, contextJson, reportJson);
+      await saveAssessment(session_id, contextJson, reportJson);
 
       return report;
     }),

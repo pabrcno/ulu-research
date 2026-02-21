@@ -69,7 +69,7 @@ export const trendsRouter = router({
       };
 
       if (input.session_id) {
-        saveSessionData(input.session_id, "trends", result);
+        await saveSessionData(input.session_id, "trends", result);
       }
 
       return result;

@@ -96,7 +96,7 @@ export const sourcingRouter = router({
       };
 
       if (session_id) {
-        saveSessionData(session_id, "sourcing", result);
+        await saveSessionData(session_id, "sourcing", result);
       }
 
       return result;
