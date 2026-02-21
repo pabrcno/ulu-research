@@ -218,6 +218,7 @@ export function Research() {
               normalizedQuery={meta.normalized_query}
               countryCode={session.geolocation.country_code}
               countryName={session.geolocation.country_name}
+              sessionId={session.session_id}
               enabled={!!meta}
               onDataLoaded={setSourcingData}
             />
@@ -225,6 +226,7 @@ export function Research() {
             <TrendsPanel
               trendKeywords={meta.trend_keywords}
               countryCode={session.geolocation.country_code}
+              sessionId={session.session_id}
               enabled={!!meta}
               onDataLoaded={setTrendReport}
             />
@@ -239,6 +241,7 @@ export function Research() {
               priceAnalysis={sourcingData?.price_analysis ?? null}
               exchangeRate={sourcingData?.exchange_rate ?? 1}
               localCurrencyCode={sourcingData?.local_currency_code ?? "USD"}
+              sessionId={session.session_id}
               enabled={!!meta}
               onComplianceLoaded={setRegulationReport}
               onImpositiveLoaded={setImpositiveReport}
@@ -247,17 +250,14 @@ export function Research() {
             <MarketReportPanel
               marketTerms={meta.market_search_terms}
               countryCode={session.geolocation.country_code}
+              sessionId={session.session_id}
               enabled={!!meta}
               onDataLoaded={setMarketReport}
             />
 
             <OpportunityScorePanel
-              priceAnalysis={sourcingData?.price_analysis ?? null}
-              trendReport={trendReport}
-              regulationReport={regulationReport}
-              impositiveReport={impositiveReport}
-              marketReport={marketReport}
-              enabled={!!meta}
+              sessionId={session.session_id}
+              allReady={!!(sourcingData && trendReport && regulationReport && marketReport)}
             />
           </div>
         )}

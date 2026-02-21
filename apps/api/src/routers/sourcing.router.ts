@@ -5,13 +5,19 @@ import { searchAliExpress } from "../services/aliexpress.service.js";
 import { searchLocalRetail } from "../lib/local-retail.js";
 import { getExchangeRate, currencyForCountry } from "../lib/exchange-rate.js";
 import { synthesizePrices } from "../lib/price-synthesizer.js";
+import { z } from "zod";
+import { saveSessionData } from "../lib/opportunity-db.js";
+
+const SourcingInputWithSession = SourcingSearchInputSchema.extend({
+  session_id: z.string().uuid().optional(),
+});
 
 export const sourcingRouter = router({
   search: publicProcedure
-    .input(SourcingSearchInputSchema)
+    .input(SourcingInputWithSession)
     .output(SourcingSearchResponseSchema)
     .query(async ({ input }) => {
-      const { normalized_query, country_code, country_name } = input;
+      const { normalized_query, country_code, country_name, session_id } = input;
 
       const [
         exchangeRateResult,
@@ -82,11 +88,17 @@ export const sourcingRouter = router({
         };
       }
 
-      return {
+      const result = {
         platforms,
         price_analysis,
         local_currency_code: localCurrencyCode,
         exchange_rate: exchangeRate,
       };
+
+      if (session_id) {
+        saveSessionData(session_id, "sourcing", result);
+      }
+
+      return result;
     }),
 });

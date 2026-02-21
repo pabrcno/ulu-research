@@ -6,7 +6,10 @@ import { createContext } from "./context.js";
 import { env } from "@repo/env/server";
 
 async function main() {
-  const server = Fastify({ logger: true });
+  const server = Fastify({
+    logger: true,
+    bodyLimit: 10 * 1024 * 1024, // 10MB — opportunity.synthesize receives 5 large reports
+  });
 
   await server.register(cors, { origin: env.CORS_ORIGIN });
 

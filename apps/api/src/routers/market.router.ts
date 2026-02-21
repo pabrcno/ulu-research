@@ -4,10 +4,12 @@ import { MarketReportSchema } from "@repo/types";
 import { tavilySearch } from "../services/tavily.service.js";
 import { buildMarketQueries } from "../lib/market-query-builder.js";
 import { synthesizeMarketReport } from "../lib/market-synthesizer.js";
+import { saveSessionData } from "../lib/opportunity-db.js";
 
 const MarketInputSchema = z.object({
   market_terms: z.array(z.string()).min(1),
   country_code: z.string().length(2),
+  session_id: z.string().uuid().optional(),
 });
 
 export const marketRouter = router({
@@ -39,6 +41,10 @@ export const marketRouter = router({
       );
 
       const report = await synthesizeMarketReport(country_code, tavilyResults);
+
+      if (input.session_id) {
+        saveSessionData(input.session_id, "market", report);
+      }
 
       console.log(`[Market] Report ready: ${report.summary.slice(0, 80)}...`);
       return report;

@@ -6,6 +6,7 @@ import { buildRegulationQueries } from "../lib/regulation-query-builder.js";
 import { buildImpositiveQueries } from "../lib/impositive-query-builder.js";
 import { synthesizeRegulationReport } from "../lib/regulation-synthesizer.js";
 import { synthesizeImpositiveReport } from "../lib/impositive-synthesizer.js";
+import { saveSessionData } from "../lib/opportunity-db.js";
 
 const ComplianceInputSchema = z.object({
   hs_code: z.string().min(1),
@@ -13,6 +14,7 @@ const ComplianceInputSchema = z.object({
   regulatory_flags: z.array(z.string()).default([]),
   import_regulations: z.array(z.string()).default([]),
   impositive_regulations: z.array(z.string()).default([]),
+  session_id: z.string().uuid().optional(),
 });
 
 const ImpositiveInputSchema = z.object({
@@ -25,6 +27,7 @@ const ImpositiveInputSchema = z.object({
   exchange_rate: z.number(),
   local_currency_code: z.string(),
   best_source_platform: z.string().nullable(),
+  session_id: z.string().uuid().optional(),
 });
 
 export const regulationsRouter = router({
@@ -40,6 +43,7 @@ export const regulationsRouter = router({
         regulatory_flags,
         import_regulations,
         impositive_regulations,
+        session_id,
       } = input;
 
       const queries = buildRegulationQueries(
@@ -74,6 +78,10 @@ export const regulationsRouter = router({
         tavilyResults,
       );
 
+      if (session_id) {
+        saveSessionData(session_id, "regulation", report);
+      }
+
       console.log(`[Compliance] Report ready: ${report.summary.slice(0, 80)}...`);
       return report;
     }),
@@ -92,6 +100,7 @@ export const regulationsRouter = router({
         exchange_rate,
         local_currency_code,
         best_source_platform,
+        session_id,
       } = input;
 
       const queries = buildImpositiveQueries(
@@ -135,6 +144,10 @@ export const regulationsRouter = router({
         },
         tavilyResults,
       );
+
+      if (session_id) {
+        saveSessionData(session_id, "impositive", report);
+      }
 
       console.log(`[Impositive] Report ready: ${report.tax_summary.slice(0, 80)}...`);
       return report;

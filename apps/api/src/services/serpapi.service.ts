@@ -297,7 +297,8 @@ export async function getTrends(
 ): Promise<TrendsRawData> {
   const dateRange = env.SERPAPI_TRENDS_DATE || "today 12-m";
 
-  const dataTypes = ["TIMESERIES", "GEO_MAP", "RELATED_QUERIES", "RELATED_TOPICS"] as const;
+  // GEO_MAP requires multiple queries; GEO_MAP_0 ("Interest by region") accepts single query
+  const dataTypes = ["TIMESERIES", "GEO_MAP_0", "RELATED_QUERIES", "RELATED_TOPICS"] as const;
 
   try {
     const results = await Promise.all(

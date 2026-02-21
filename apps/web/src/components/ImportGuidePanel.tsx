@@ -36,6 +36,7 @@ interface ImportGuidePanelProps {
   priceAnalysis: PriceAnalysis | null;
   exchangeRate: number;
   localCurrencyCode: string;
+  sessionId?: string;
   enabled: boolean;
   onComplianceLoaded?: (data: RegulationReport) => void;
   onImpositiveLoaded?: (data: ImpositiveReport) => void;
@@ -51,6 +52,7 @@ export function ImportGuidePanel({
   priceAnalysis,
   exchangeRate,
   localCurrencyCode,
+  sessionId,
   enabled,
   onComplianceLoaded,
   onImpositiveLoaded,
@@ -64,6 +66,7 @@ export function ImportGuidePanel({
       regulatory_flags: regulatoryFlags,
       import_regulations: importRegulations,
       impositive_regulations: impositiveRegulations,
+      session_id: sessionId,
     },
     {
       enabled,
@@ -83,6 +86,7 @@ export function ImportGuidePanel({
       exchange_rate: exchangeRate,
       local_currency_code: localCurrencyCode,
       best_source_platform: priceAnalysis?.best_source_platform ?? null,
+      session_id: sessionId,
     },
     {
       enabled: enabled && !!priceAnalysis,

@@ -5,11 +5,13 @@ import { getTrends } from "../services/serpapi.service.js";
 import { synthesizeTrendReport } from "../lib/trend-synthesizer.js";
 import { translateKeyword } from "../lib/keyword-translator.js";
 import { getCountryLanguage } from "../lib/countries.js";
+import { saveSessionData } from "../lib/opportunity-db.js";
 
 const TrendsGetInputSchema = z.object({
   trend_keywords: z.array(z.string()).min(1).max(5),
   geo: z.string().length(2),
   use_regional_language: z.boolean().optional().default(false),
+  session_id: z.string().uuid().optional(),
 });
 
 const TrendsGetOutputSchema = TrendReportSchema.extend({
@@ -58,12 +60,18 @@ export const trendsRouter = router({
       // Synthesize the raw data into a structured report using Claude
       const report = await synthesizeTrendReport(searchKeyword, geo, rawData);
 
-      return {
+      const result = {
         ...report,
         original_keyword: originalKeyword,
         translated_keyword: translatedKeyword,
         language_code: languageCode,
         language_name: languageName,
       };
+
+      if (input.session_id) {
+        saveSessionData(input.session_id, "trends", result);
+      }
+
+      return result;
     }),
 });

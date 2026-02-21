@@ -38,11 +38,12 @@ import type { TrendReport } from "@repo/types";
 interface TrendsPanelProps {
   trendKeywords: string[];
   countryCode: string;
+  sessionId?: string;
   enabled: boolean;
   onDataLoaded?: (data: TrendReport) => void;
 }
 
-export function TrendsPanel({ trendKeywords, countryCode, enabled, onDataLoaded }: TrendsPanelProps) {
+export function TrendsPanel({ trendKeywords, countryCode, sessionId, enabled, onDataLoaded }: TrendsPanelProps) {
   const [useRegionalLanguage, setUseRegionalLanguage] = useState(false);
 
   const trends = trpc.trends.get.useQuery(
@@ -50,6 +51,7 @@ export function TrendsPanel({ trendKeywords, countryCode, enabled, onDataLoaded 
       trend_keywords: trendKeywords, 
       geo: countryCode,
       use_regional_language: useRegionalLanguage,
+      session_id: sessionId,
     },
     { 
       enabled,

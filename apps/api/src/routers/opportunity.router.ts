@@ -1,43 +1,76 @@
 import { router, publicProcedure } from "../trpc.js";
 import { z } from "zod";
-import {
-  PriceAnalysisSchema,
-  TrendReportSchema,
-  RegulationReportSchema,
-  ImpositiveReportSchema,
-  MarketReportSchema,
-  OpportunityReportSchema,
-} from "@repo/types";
+import { OpportunityReportSchema, type OpportunityContext } from "@repo/types";
 import { scoreOpportunity } from "../lib/opportunity-scorer.js";
-
-const OpportunityInputSchema = z.object({
-  price_analysis: PriceAnalysisSchema,
-  trend_report: TrendReportSchema,
-  regulation_report: RegulationReportSchema,
-  impositive_report: ImpositiveReportSchema.nullable(),
-  market_report: MarketReportSchema,
-});
+import {
+  getAssessmentBySessionId,
+  saveAssessment,
+  getAllSessionData,
+} from "../lib/opportunity-db.js";
+import { TRPCError } from "@trpc/server";
 
 export const opportunityRouter = router({
   ping: publicProcedure.query(() => ({ status: "opportunity router ok" })),
 
-  synthesize: publicProcedure
-    .input(OpportunityInputSchema)
-    .output(OpportunityReportSchema)
-    .query(async ({ input }) => {
-      console.log("[Opportunity] Synthesizing all sub-reports into opportunity score...");
+  get: publicProcedure
+    .input(z.object({ session_id: z.string().uuid() }))
+    .output(OpportunityReportSchema.nullable())
+    .query(({ input }) => {
+      const stored = getAssessmentBySessionId(input.session_id);
+      if (!stored) return null;
+      return JSON.parse(stored.report_json) as z.infer<typeof OpportunityReportSchema>;
+    }),
 
-      const report = await scoreOpportunity({
-        priceAnalysis: input.price_analysis,
-        trendReport: input.trend_report,
-        regulationReport: input.regulation_report,
-        impositiveReport: input.impositive_report,
-        marketReport: input.market_report,
-      });
+  synthesize: publicProcedure
+    .input(z.object({ session_id: z.string().uuid() }))
+    .output(OpportunityReportSchema)
+    .mutation(async ({ input }) => {
+      const { session_id } = input;
+
+      const cached = getAssessmentBySessionId(session_id);
+      if (cached) {
+        return JSON.parse(cached.report_json) as z.infer<typeof OpportunityReportSchema>;
+      }
+
+      const data = getAllSessionData(session_id);
+
+      if (!data.product_metadata || !data.sourcing) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Session data incomplete — sourcing and product metadata are required before synthesis.",
+        });
+      }
+
+      const sourcing = data.sourcing as {
+        platforms: OpportunityContext["platforms"];
+        price_analysis: OpportunityContext["price_analysis"];
+        local_currency_code: string;
+        exchange_rate: number;
+      };
+
+      const context: OpportunityContext = {
+        session_id,
+        product_metadata: data.product_metadata as OpportunityContext["product_metadata"],
+        platforms: sourcing.platforms,
+        price_analysis: sourcing.price_analysis,
+        trend_report: (data.trends ?? null) as OpportunityContext["trend_report"],
+        regulation_report: (data.regulation ?? null) as OpportunityContext["regulation_report"],
+        impositive_report: (data.impositive ?? null) as OpportunityContext["impositive_report"],
+        market_report: (data.market ?? null) as OpportunityContext["market_report"],
+        local_currency_code: sourcing.local_currency_code,
+        exchange_rate: sourcing.exchange_rate,
+      };
 
       console.log(
-        `[Opportunity] Score: ${report.opportunity_score}/100 — ${report.overall_verdict.slice(0, 80)}...`,
+        `[Opportunity] Synthesizing for session ${session_id} — ` +
+          `data keys: ${Object.keys(data).join(", ")}`,
       );
+
+      const report = await scoreOpportunity(context);
+
+      const contextJson = JSON.stringify(context);
+      const reportJson = JSON.stringify(report);
+      saveAssessment(session_id, contextJson, reportJson);
 
       return report;
     }),

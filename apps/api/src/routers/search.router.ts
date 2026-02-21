@@ -4,6 +4,7 @@ import { geolocateIp } from "../services/geolocation.service.js";
 import { extractKeywords } from "../lib/keyword-extractor.js";
 import { getCountryName } from "../lib/countries.js";
 import { randomUUID } from "node:crypto";
+import { saveSessionData } from "../lib/opportunity-db.js";
 
 export const searchRouter = router({
   initiate: publicProcedure
@@ -32,14 +33,18 @@ export const searchRouter = router({
               country_name: getCountryName(countryCode),
             };
 
+      const meta = {
+        ...productMetadata,
+        id: randomUUID(),
+        session_id: sessionId,
+      };
+
+      saveSessionData(sessionId, "product_metadata", meta);
+
       return {
         session_id: sessionId,
         geolocation,
-        product_metadata: {
-          ...productMetadata,
-          id: randomUUID(),
-          session_id: sessionId,
-        },
+        product_metadata: meta,
       };
     }),
 });

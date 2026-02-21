@@ -1,7 +1,8 @@
+import { useEffect, useRef } from "react";
 import { trpc } from "../trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Target,
   AlertCircle,
@@ -14,50 +15,25 @@ import {
   Package,
   Percent,
 } from "lucide-react";
-import type {
-  PriceAnalysis,
-  TrendReport,
-  RegulationReport,
-  ImpositiveReport,
-  MarketReport,
-  OpportunityReport,
-} from "@repo/types";
 
 interface OpportunityScorePanelProps {
-  priceAnalysis: PriceAnalysis | null;
-  trendReport: TrendReport | null;
-  regulationReport: RegulationReport | null;
-  impositiveReport: ImpositiveReport | null;
-  marketReport: MarketReport | null;
-  enabled: boolean;
+  sessionId: string;
+  allReady: boolean;
 }
 
 export function OpportunityScorePanel({
-  priceAnalysis,
-  trendReport,
-  regulationReport,
-  impositiveReport,
-  marketReport,
-  enabled,
+  sessionId,
+  allReady,
 }: OpportunityScorePanelProps) {
-  const allReady = !!(priceAnalysis && trendReport && regulationReport && marketReport);
+  const synthesize = trpc.opportunity.synthesize.useMutation();
+  const triggered = useRef(false);
 
-  const opportunity = trpc.opportunity.synthesize.useQuery(
-    {
-      price_analysis: priceAnalysis!,
-      trend_report: trendReport!,
-      regulation_report: regulationReport!,
-      impositive_report: impositiveReport ?? null,
-      market_report: marketReport!,
-    },
-    {
-      enabled: enabled && allReady,
-      staleTime: 60 * 60 * 1000,
-      retry: 2,
-    },
-  );
-
-  if (!enabled) return null;
+  useEffect(() => {
+    if (allReady && !triggered.current && !synthesize.isPending && !synthesize.data) {
+      triggered.current = true;
+      synthesize.mutate({ session_id: sessionId });
+    }
+  }, [allReady, sessionId]);
 
   if (!allReady) {
     return (
@@ -80,7 +56,7 @@ export function OpportunityScorePanel({
     );
   }
 
-  if (opportunity.isLoading) {
+  if (synthesize.isPending) {
     return (
       <Card>
         <CardHeader>
@@ -98,7 +74,7 @@ export function OpportunityScorePanel({
     );
   }
 
-  if (opportunity.isError) {
+  if (synthesize.isError) {
     return (
       <Card>
         <CardHeader>
@@ -111,7 +87,7 @@ export function OpportunityScorePanel({
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {opportunity.error.message || "Failed to generate opportunity assessment."}
+              {synthesize.error.message || "Failed to generate opportunity assessment."}
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -119,9 +95,9 @@ export function OpportunityScorePanel({
     );
   }
 
-  if (!opportunity.data) return null;
+  if (!synthesize.data) return null;
 
-  const data = opportunity.data;
+  const data = synthesize.data;
 
   return (
     <Card>
@@ -135,7 +111,6 @@ export function OpportunityScorePanel({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Score + Key Metrics */}
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <ScoreRing score={data.opportunity_score} />
           <div className="grid grid-cols-2 gap-4 flex-1">
@@ -176,12 +151,10 @@ export function OpportunityScorePanel({
           </div>
         </div>
 
-        {/* Verdict */}
         <div className="p-4 rounded-lg bg-muted/50 border">
           <p className="text-sm leading-relaxed">{data.overall_verdict}</p>
         </div>
 
-        {/* Risk Flags */}
         {data.risk_flags.length > 0 && (
           <div>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
@@ -199,7 +172,6 @@ export function OpportunityScorePanel({
           </div>
         )}
 
-        {/* Keyword Gaps */}
         {data.keyword_gaps.length > 0 && (
           <div>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
@@ -216,7 +188,6 @@ export function OpportunityScorePanel({
           </div>
         )}
 
-        {/* Variant Suggestions */}
         {data.variant_suggestions.length > 0 && (
           <div>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2">

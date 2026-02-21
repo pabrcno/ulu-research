@@ -18,6 +18,7 @@ import type { MarketReport } from "@repo/types";
 interface MarketReportPanelProps {
   marketTerms: string[];
   countryCode: string;
+  sessionId?: string;
   enabled: boolean;
   onDataLoaded?: (data: MarketReport) => void;
 }
@@ -25,11 +26,12 @@ interface MarketReportPanelProps {
 export function MarketReportPanel({
   marketTerms,
   countryCode,
+  sessionId,
   enabled,
   onDataLoaded,
 }: MarketReportPanelProps) {
   const market = trpc.market.research.useQuery(
-    { market_terms: marketTerms, country_code: countryCode },
+    { market_terms: marketTerms, country_code: countryCode, session_id: sessionId },
     {
       enabled,
       staleTime: 7 * 24 * 60 * 60 * 1000,

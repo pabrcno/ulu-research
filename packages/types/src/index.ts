@@ -286,6 +286,22 @@ export const SourcingSearchResponseSchema = z.object({
 });
 export type SourcingSearchResponse = z.infer<typeof SourcingSearchResponseSchema>;
 
+// ─── Opportunity Context (full data passed to Claude) ─────────────────
+
+export const OpportunityContextSchema = z.object({
+  session_id: z.string().uuid(),
+  product_metadata: ProductMetadataSchema,
+  platforms: PlatformResultsSchema,
+  price_analysis: PriceAnalysisSchema,
+  trend_report: TrendReportSchema.nullable(),
+  regulation_report: RegulationReportSchema.nullable(),
+  impositive_report: ImpositiveReportSchema.nullable(),
+  market_report: MarketReportSchema.nullable(),
+  local_currency_code: z.string(),
+  exchange_rate: z.number(),
+});
+export type OpportunityContext = z.infer<typeof OpportunityContextSchema>;
+
 // ─── Geolocation ───────────────────────────────────────────────────
 
 export const GeolocationSchema = z.object({

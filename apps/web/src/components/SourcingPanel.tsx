@@ -41,6 +41,7 @@ interface SourcingPanelProps {
   normalizedQuery: string;
   countryCode: string;
   countryName: string;
+  sessionId?: string;
   enabled: boolean;
   onDataLoaded?: (data: SourcingSearchResponse) => void;
 }
@@ -57,11 +58,11 @@ function formatDualPrice(
   return `${usdStr} / ${localStr}`;
 }
 
-export function SourcingPanel({ normalizedQuery, countryCode, countryName, enabled, onDataLoaded }: SourcingPanelProps) {
+export function SourcingPanel({ normalizedQuery, countryCode, countryName, sessionId, enabled, onDataLoaded }: SourcingPanelProps) {
   const [activeTab, setActiveTab] = useState<string>("summary");
 
   const sourcing = trpc.sourcing.search.useQuery(
-    { normalized_query: normalizedQuery, country_code: countryCode, country_name: countryName },
+    { normalized_query: normalizedQuery, country_code: countryCode, country_name: countryName, session_id: sessionId },
     { enabled, staleTime: 60 * 60 * 1000, retry: 1 },
   );
 
