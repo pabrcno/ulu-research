@@ -1,19 +1,32 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildApp } from "../src/app.js";
+import { buildApp } from "../src/app";
 
-let appReady: ReturnType<typeof buildApp> | null = null;
+type App = Awaited<ReturnType<typeof buildApp>>;
+let app: App;
 
 async function getApp() {
-  if (!appReady) {
-    appReady = buildApp().then(async (app) => {
-      await app.ready();
-      return app;
-    });
+  if (!app) {
+    app = await buildApp();
+    await app.ready();
   }
-  return appReady;
+  return app;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const app = await getApp();
-  app.server.emit("request", req, res);
+  const fastify = await getApp();
+
+  const response = await fastify.inject({
+    method: req.method as any,
+    url: req.url || "/",
+    headers: req.headers as Record<string, string>,
+    payload: req.body ?? undefined,
+  });
+
+  res.status(response.statusCode);
+  for (const [key, value] of Object.entries(response.headers)) {
+    if (value !== undefined) {
+      res.setHeader(key, value as string | string[]);
+    }
+  }
+  res.end(response.rawPayload);
 }
