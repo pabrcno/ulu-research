@@ -1,6 +1,7 @@
 {
   "buildCommand": "cd ../.. && pnpm turbo build --filter=@repo/api",
   "installCommand": "cd ../.. && pnpm install",
+  "outputDirectory": "public",
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.ts": {
