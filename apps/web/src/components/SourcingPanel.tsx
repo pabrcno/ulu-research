@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "../trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,7 @@ interface SourcingPanelProps {
   countryCode: string;
   countryName: string;
   enabled: boolean;
+  onDataLoaded?: (data: SourcingSearchResponse) => void;
 }
 
 function formatDualPrice(
@@ -56,13 +57,19 @@ function formatDualPrice(
   return `${usdStr} / ${localStr}`;
 }
 
-export function SourcingPanel({ normalizedQuery, countryCode, countryName, enabled }: SourcingPanelProps) {
+export function SourcingPanel({ normalizedQuery, countryCode, countryName, enabled, onDataLoaded }: SourcingPanelProps) {
   const [activeTab, setActiveTab] = useState<string>("summary");
 
   const sourcing = trpc.sourcing.search.useQuery(
     { normalized_query: normalizedQuery, country_code: countryCode, country_name: countryName },
     { enabled, staleTime: 60 * 60 * 1000, retry: 1 },
   );
+
+  useEffect(() => {
+    if (sourcing.data && onDataLoaded) {
+      onDataLoaded(sourcing.data);
+    }
+  }, [sourcing.data, onDataLoaded]);
 
   if (!enabled) return null;
 

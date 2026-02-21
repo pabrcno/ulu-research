@@ -3,14 +3,16 @@ import { trpc } from "../trpc";
 import { SearchBar } from "../components/SearchBar";
 import { SourcingPanel } from "../components/SourcingPanel";
 import { TrendsPanel } from "../components/TrendsPanel";
+import { ImportGuidePanel } from "../components/ImportGuidePanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Package, Tag, TrendingUp, Shield, ShoppingBag, FileSearch, Receipt } from "lucide-react";
-import type { SessionInitResponse } from "@repo/types";
+import type { SessionInitResponse, SourcingSearchResponse } from "@repo/types";
 
 export function Research() {
   const [session, setSession] = useState<SessionInitResponse | null>(null);
+  const [sourcingData, setSourcingData] = useState<SourcingSearchResponse | null>(null);
 
   const health = trpc.health.useQuery(undefined, {
     refetchInterval: 10_000,
@@ -18,11 +20,15 @@ export function Research() {
   });
 
   const initiate = trpc.search.initiate.useMutation({
-    onSuccess: (data) => setSession(data),
+    onSuccess: (data) => {
+      setSession(data);
+      setSourcingData(null);
+    },
   });
 
   function handleSearch(query: string, countryCode?: string) {
     setSession(null);
+    setSourcingData(null);
     initiate.mutate({ raw_query: query, country_code: countryCode });
   }
 
@@ -196,6 +202,7 @@ export function Research() {
               countryCode={session.geolocation.country_code}
               countryName={session.geolocation.country_name}
               enabled={!!meta}
+              onDataLoaded={setSourcingData}
             />
 
             <TrendsPanel
@@ -204,8 +211,21 @@ export function Research() {
               enabled={!!meta}
             />
 
+            <ImportGuidePanel
+              hsCode={meta.hs_code}
+              productName={meta.product_name}
+              countryCode={session.geolocation.country_code}
+              regulatoryFlags={meta.regulatory_flags}
+              importRegulations={meta.import_regulations}
+              impositiveRegulations={meta.impositive_regulations}
+              priceAnalysis={sourcingData?.price_analysis ?? null}
+              exchangeRate={sourcingData?.exchange_rate ?? 1}
+              localCurrencyCode={sourcingData?.local_currency_code ?? "USD"}
+              enabled={!!meta}
+            />
+
             <p className="text-sm text-muted-foreground text-center">
-              Regulations and market panels will appear here in Phase 4–5.
+              Market and opportunity panels will appear here in Phase 5.
             </p>
           </div>
         )}

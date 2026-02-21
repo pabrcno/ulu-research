@@ -139,7 +139,7 @@ export const TrendReportSchema = z.object({
 });
 export type TrendReport = z.infer<typeof TrendReportSchema>;
 
-// ─── Regulation Report ─────────────────────────────────────────────
+// ─── Regulation Report (Import Compliance) ─────────────────────────
 
 export const RegulationSourceSchema = z.object({
   title: z.string(),
@@ -149,6 +149,16 @@ export const RegulationSourceSchema = z.object({
   relevance_score: z.number().optional(),
 });
 export type RegulationSource = z.infer<typeof RegulationSourceSchema>;
+
+export const ImportStepSchema = z.object({
+  step_number: z.number(),
+  title: z.string(),
+  description: z.string(),
+  estimated_time: z.string().nullable(),
+  estimated_cost: z.string().nullable(),
+  is_critical: z.boolean(),
+});
+export type ImportStep = z.infer<typeof ImportStepSchema>;
 
 export const RegulationReportSchema = z.object({
   id: z.string().uuid().optional(),
@@ -161,10 +171,52 @@ export const RegulationReportSchema = z.object({
   labeling_requirements: z.array(z.string()),
   quota_info: z.string().nullable(),
   licensing_info: z.string().nullable(),
+  import_steps: z.array(ImportStepSchema).optional(),
   summary: z.string(),
   sources: z.array(RegulationSourceSchema),
 });
 export type RegulationReport = z.infer<typeof RegulationReportSchema>;
+
+// ─── Impositive Report (Taxes, Duties & Landed Cost) ───────────────
+
+export const LandedCostBreakdownSchema = z.object({
+  wholesale_unit_price_usd: z.number().nullable(),
+  estimated_shipping_per_unit_usd: z.number().nullable(),
+  cif_value_usd: z.number().nullable(),
+  duty_amount_usd: z.number().nullable(),
+  vat_amount_usd: z.number().nullable(),
+  other_fees_usd: z.number().nullable(),
+  total_landed_cost_usd: z.number().nullable(),
+  total_landed_cost_local: z.number().nullable(),
+  effective_tax_rate_pct: z.number().nullable(),
+  net_margin_pct: z.number().nullable(),
+  local_retail_price_usd: z.number().nullable(),
+});
+export type LandedCostBreakdown = z.infer<typeof LandedCostBreakdownSchema>;
+
+export const TaxLineItemSchema = z.object({
+  name: z.string(),
+  rate_pct: z.number().nullable(),
+  description: z.string(),
+  applies_to: z.string(),
+});
+export type TaxLineItem = z.infer<typeof TaxLineItemSchema>;
+
+export const ImpositiveReportSchema = z.object({
+  id: z.string().uuid().optional(),
+  session_id: z.string().uuid().optional(),
+  country_code: z.string(),
+  hs_code: z.string(),
+  import_duty_pct: z.number().nullable(),
+  vat_rate_pct: z.number().nullable(),
+  additional_taxes: z.array(TaxLineItemSchema),
+  total_tax_burden_pct: z.number().nullable(),
+  landed_cost: LandedCostBreakdownSchema,
+  tax_summary: z.string(),
+  importer_tips: z.array(z.string()),
+  sources: z.array(RegulationSourceSchema),
+});
+export type ImpositiveReport = z.infer<typeof ImpositiveReportSchema>;
 
 // ─── Market Report ─────────────────────────────────────────────────
 
