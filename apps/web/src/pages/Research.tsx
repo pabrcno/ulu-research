@@ -4,15 +4,28 @@ import { SearchBar } from "../components/SearchBar";
 import { SourcingPanel } from "../components/SourcingPanel";
 import { TrendsPanel } from "../components/TrendsPanel";
 import { ImportGuidePanel } from "../components/ImportGuidePanel";
+import { MarketReportPanel } from "../components/MarketReportPanel";
+import { OpportunityScorePanel } from "../components/OpportunityScorePanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Package, Tag, TrendingUp, Shield, ShoppingBag, FileSearch, Receipt } from "lucide-react";
-import type { SessionInitResponse, SourcingSearchResponse } from "@repo/types";
+import type {
+  SessionInitResponse,
+  SourcingSearchResponse,
+  TrendReport,
+  RegulationReport,
+  ImpositiveReport,
+  MarketReport,
+} from "@repo/types";
 
 export function Research() {
   const [session, setSession] = useState<SessionInitResponse | null>(null);
   const [sourcingData, setSourcingData] = useState<SourcingSearchResponse | null>(null);
+  const [trendReport, setTrendReport] = useState<TrendReport | null>(null);
+  const [regulationReport, setRegulationReport] = useState<RegulationReport | null>(null);
+  const [impositiveReport, setImpositiveReport] = useState<ImpositiveReport | null>(null);
+  const [marketReport, setMarketReport] = useState<MarketReport | null>(null);
 
   const health = trpc.health.useQuery(undefined, {
     refetchInterval: 10_000,
@@ -29,6 +42,10 @@ export function Research() {
   function handleSearch(query: string, countryCode?: string) {
     setSession(null);
     setSourcingData(null);
+    setTrendReport(null);
+    setRegulationReport(null);
+    setImpositiveReport(null);
+    setMarketReport(null);
     initiate.mutate({ raw_query: query, country_code: countryCode });
   }
 
@@ -209,6 +226,7 @@ export function Research() {
               trendKeywords={meta.trend_keywords}
               countryCode={session.geolocation.country_code}
               enabled={!!meta}
+              onDataLoaded={setTrendReport}
             />
 
             <ImportGuidePanel
@@ -222,11 +240,25 @@ export function Research() {
               exchangeRate={sourcingData?.exchange_rate ?? 1}
               localCurrencyCode={sourcingData?.local_currency_code ?? "USD"}
               enabled={!!meta}
+              onComplianceLoaded={setRegulationReport}
+              onImpositiveLoaded={setImpositiveReport}
             />
 
-            <p className="text-sm text-muted-foreground text-center">
-              Market and opportunity panels will appear here in Phase 5.
-            </p>
+            <MarketReportPanel
+              marketTerms={meta.market_search_terms}
+              countryCode={session.geolocation.country_code}
+              enabled={!!meta}
+              onDataLoaded={setMarketReport}
+            />
+
+            <OpportunityScorePanel
+              priceAnalysis={sourcingData?.price_analysis ?? null}
+              trendReport={trendReport}
+              regulationReport={regulationReport}
+              impositiveReport={impositiveReport}
+              marketReport={marketReport}
+              enabled={!!meta}
+            />
           </div>
         )}
       </div>

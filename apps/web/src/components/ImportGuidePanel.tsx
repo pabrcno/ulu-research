@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "../trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,8 @@ interface ImportGuidePanelProps {
   exchangeRate: number;
   localCurrencyCode: string;
   enabled: boolean;
+  onComplianceLoaded?: (data: RegulationReport) => void;
+  onImpositiveLoaded?: (data: ImpositiveReport) => void;
 }
 
 export function ImportGuidePanel({
@@ -50,6 +52,8 @@ export function ImportGuidePanel({
   exchangeRate,
   localCurrencyCode,
   enabled,
+  onComplianceLoaded,
+  onImpositiveLoaded,
 }: ImportGuidePanelProps) {
   const [activeTab, setActiveTab] = useState("compliance");
 
@@ -86,6 +90,14 @@ export function ImportGuidePanel({
       retry: 2,
     },
   );
+
+  useEffect(() => {
+    if (compliance.data) onComplianceLoaded?.(compliance.data);
+  }, [compliance.data]);
+
+  useEffect(() => {
+    if (impositive.data) onImpositiveLoaded?.(impositive.data);
+  }, [impositive.data]);
 
   if (!enabled) return null;
 

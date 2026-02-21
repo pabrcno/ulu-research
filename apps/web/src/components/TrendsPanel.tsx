@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "../trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,9 +39,10 @@ interface TrendsPanelProps {
   trendKeywords: string[];
   countryCode: string;
   enabled: boolean;
+  onDataLoaded?: (data: TrendReport) => void;
 }
 
-export function TrendsPanel({ trendKeywords, countryCode, enabled }: TrendsPanelProps) {
+export function TrendsPanel({ trendKeywords, countryCode, enabled, onDataLoaded }: TrendsPanelProps) {
   const [useRegionalLanguage, setUseRegionalLanguage] = useState(false);
 
   const trends = trpc.trends.get.useQuery(
@@ -52,10 +53,14 @@ export function TrendsPanel({ trendKeywords, countryCode, enabled }: TrendsPanel
     },
     { 
       enabled,
-      staleTime: 24 * 60 * 60 * 1000, // 24 hours (as per implementation plan)
+      staleTime: 24 * 60 * 60 * 1000,
       retry: 2,
     }
   );
+
+  useEffect(() => {
+    if (trends.data) onDataLoaded?.(trends.data);
+  }, [trends.data]);
 
   if (!enabled) return null;
 
