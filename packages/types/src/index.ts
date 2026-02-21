@@ -29,11 +29,13 @@ export type ProductMetadata = z.infer<typeof ProductMetadataSchema>;
 // ─── Platform Product ──────────────────────────────────────────────
 
 export const PlatformEnum = z.enum([
-  "alibaba",
+  "aliexpress",
+  "wholesale",
   "amazon",
   "ebay",
   "walmart",
   "google_shopping",
+  "local_retail",
 ]);
 export type Platform = z.infer<typeof PlatformEnum>;
 
@@ -46,6 +48,9 @@ export const PlatformProductSchema = z.object({
   price_formatted: z.string(),
   currency: z.string().default("USD"),
   price_type: z.enum(["wholesale", "retail", "variable"]).optional(),
+  price_local: z.number().nullable().optional(),
+  local_currency_code: z.string().optional(),
+  source_domain: z.string().optional(),
   moq: z.number().nullable().optional(),
   unit: z.string().optional(),
   rating: z.number().nullable().optional(),
@@ -55,6 +60,7 @@ export const PlatformProductSchema = z.object({
   product_url: z.string().url().optional(),
   image_url: z.string().optional(),
   condition: z.string().optional(),
+  sales_volume: z.string().optional(),
 });
 export type PlatformProduct = z.infer<typeof PlatformProductSchema>;
 
@@ -64,8 +70,14 @@ export const PriceAnalysisSchema = z.object({
   id: z.string().uuid().optional(),
   session_id: z.string().uuid().optional(),
   wholesale_floor: z.number().nullable(),
+  wholesale_floor_local: z.number().nullable().optional(),
   retail_ceiling: z.number().nullable(),
+  retail_ceiling_local: z.number().nullable().optional(),
+  local_retail_median: z.number().nullable().optional(),
+  local_retail_median_local: z.number().nullable().optional(),
   currency: z.string().default("USD"),
+  local_currency_code: z.string().optional(),
+  exchange_rate: z.number().optional(),
   gross_margin_pct_min: z.number().nullable(),
   gross_margin_pct_max: z.number().nullable(),
   best_source_platform: PlatformEnum.nullable(),
@@ -194,21 +206,27 @@ export type OpportunityReport = z.infer<typeof OpportunityReportSchema>;
 
 export const SourcingSearchInputSchema = z.object({
   normalized_query: z.string().min(1),
+  country_code: z.string().length(2),
+  country_name: z.string().min(1),
 });
 export type SourcingSearchInput = z.infer<typeof SourcingSearchInputSchema>;
 
 export const PlatformResultsSchema = z.object({
-  alibaba: z.array(PlatformProductSchema),
+  aliexpress: z.array(PlatformProductSchema),
+  wholesale: z.array(PlatformProductSchema),
   amazon: z.array(PlatformProductSchema),
   ebay: z.array(PlatformProductSchema),
   walmart: z.array(PlatformProductSchema),
   google_shopping: z.array(PlatformProductSchema),
+  local_retail: z.array(PlatformProductSchema),
 });
 export type PlatformResults = z.infer<typeof PlatformResultsSchema>;
 
 export const SourcingSearchResponseSchema = z.object({
   platforms: PlatformResultsSchema,
   price_analysis: PriceAnalysisSchema,
+  local_currency_code: z.string(),
+  exchange_rate: z.number(),
 });
 export type SourcingSearchResponse = z.infer<typeof SourcingSearchResponseSchema>;
 

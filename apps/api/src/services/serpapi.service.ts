@@ -1,5 +1,5 @@
 import { env } from "@repo/env/server";
-import type { Platform, PlatformProduct } from "@repo/types";
+import type { PlatformProduct } from "@repo/types";
 
 interface SerpApiParams {
   engine: string;
@@ -7,7 +7,7 @@ interface SerpApiParams {
   [key: string]: string | number | boolean | undefined;
 }
 
-async function callSerpApi(params: SerpApiParams): Promise<Record<string, any>> {
+export async function callSerpApi(params: SerpApiParams): Promise<Record<string, any>> {
   const url = new URL(env.SERPAPI_BASE_URL);
   url.searchParams.set("api_key", env.SERPAPI_API_KEY);
   url.searchParams.set("output", "json");
@@ -30,7 +30,7 @@ async function callSerpApi(params: SerpApiParams): Promise<Record<string, any>> 
   return res.json() as Promise<Record<string, any>>;
 }
 
-// ─── Platform-specific result mappers ──────────────────────────────
+// ─── Price parser ───────────────────────────────────────────────────
 
 function parsePrice(raw: string | number | null | undefined): { value: number | null; formatted: string } {
   if (raw == null) return { value: null, formatted: "N/A" };
@@ -44,29 +44,7 @@ function parsePrice(raw: string | number | null | undefined): { value: number | 
   return { value: isNaN(num) ? null : num, formatted: str };
 }
 
-function mapAlibabaResults(data: Record<string, any>): PlatformProduct[] {
-  const results: any[] = data.organic_results ?? [];
-  return results.slice(0, env.SERPAPI_RESULTS_PER_PAGE).map((item) => {
-    const price = parsePrice(item.price);
-    return {
-      platform: "alibaba" as const,
-      external_id: item.position?.toString(),
-      title: item.title ?? "Untitled",
-      price_raw: price.value,
-      price_formatted: price.formatted,
-      currency: "USD",
-      price_type: "wholesale" as const,
-      moq: item.moq ? parseInt(String(item.moq).replace(/\D/g, ""), 10) || null : null,
-      unit: item.unit ?? undefined,
-      rating: item.rating ? parseFloat(String(item.rating)) : null,
-      review_count: item.reviews ? parseInt(String(item.reviews).replace(/\D/g, ""), 10) || null : null,
-      seller_name: item.supplier_name ?? item.seller ?? undefined,
-      is_verified: item.is_verified ?? item.trade_assurance ?? undefined,
-      product_url: item.link ?? undefined,
-      image_url: item.thumbnail ?? undefined,
-    };
-  });
-}
+// ─── Platform-specific result mappers (no hardcoded price_type) ─────
 
 function mapAmazonResults(data: Record<string, any>): PlatformProduct[] {
   const results: any[] = data.organic_results ?? [];
@@ -81,7 +59,6 @@ function mapAmazonResults(data: Record<string, any>): PlatformProduct[] {
       price_raw: price.value ?? (priceObj.value ? parseFloat(String(priceObj.value)) : null),
       price_formatted: price.formatted,
       currency: priceObj.currency ?? "USD",
-      price_type: "retail" as const,
       rating: item.rating ? parseFloat(String(item.rating)) : null,
       review_count: item.reviews ? parseInt(String(item.reviews).replace(/\D/g, ""), 10) || null : null,
       seller_name: item.seller?.name ?? undefined,
@@ -105,7 +82,6 @@ function mapEbayResults(data: Record<string, any>): PlatformProduct[] {
       price_raw: price.value ?? (priceObj.extracted ? parseFloat(String(priceObj.extracted)) : null),
       price_formatted: price.formatted,
       currency: priceObj.currency ?? "USD",
-      price_type: "variable" as const,
       rating: null,
       review_count: null,
       seller_name: item.seller_info?.name ?? undefined,
@@ -129,7 +105,6 @@ function mapWalmartResults(data: Record<string, any>): PlatformProduct[] {
       price_raw: price.value,
       price_formatted: price.formatted,
       currency: "USD",
-      price_type: "retail" as const,
       rating: item.rating ? parseFloat(String(item.rating)) : null,
       review_count: item.reviews ? parseInt(String(item.reviews).replace(/\D/g, ""), 10) || null : null,
       seller_name: item.seller_name ?? undefined,
@@ -151,7 +126,6 @@ function mapGoogleShoppingResults(data: Record<string, any>): PlatformProduct[] 
       price_raw: price.value ?? (item.extracted_price ? parseFloat(String(item.extracted_price)) : null),
       price_formatted: price.formatted,
       currency: "USD",
-      price_type: "retail" as const,
       rating: item.rating ? parseFloat(String(item.rating)) : null,
       review_count: item.reviews ? parseInt(String(item.reviews).replace(/\D/g, ""), 10) || null : null,
       seller_name: item.source ?? undefined,
@@ -161,19 +135,18 @@ function mapGoogleShoppingResults(data: Record<string, any>): PlatformProduct[] 
   });
 }
 
-const PLATFORM_CONFIG: Record<Platform, {
+// ─── SerpApi platform configs (retail only — 4 engines) ─────────────
+
+type SerpApiPlatform = "amazon" | "ebay" | "walmart" | "google_shopping";
+
+const PLATFORM_CONFIG: Record<SerpApiPlatform, {
   engine: string;
   buildParams: (query: string) => SerpApiParams;
   mapResults: (data: Record<string, any>) => PlatformProduct[];
 }> = {
-  alibaba: {
-    engine: "alibaba",
-    buildParams: (q) => ({ engine: "alibaba", q, page: 1 }),
-    mapResults: mapAlibabaResults,
-  },
   amazon: {
     engine: "amazon",
-    buildParams: (q) => ({ engine: "amazon", search_term: q, amazon_domain: "amazon.com" }),
+    buildParams: (q) => ({ engine: "amazon", k: q, amazon_domain: "amazon.com" }),
     mapResults: mapAmazonResults,
   },
   ebay: {
@@ -194,7 +167,7 @@ const PLATFORM_CONFIG: Record<Platform, {
 };
 
 export async function searchPlatform(
-  platform: Platform,
+  platform: SerpApiPlatform,
   query: string,
 ): Promise<PlatformProduct[]> {
   const config = PLATFORM_CONFIG[platform];
@@ -207,20 +180,103 @@ export async function searchPlatform(
   }
 }
 
-export async function searchAllPlatforms(
+export async function searchAllRetailPlatforms(
   query: string,
-): Promise<Record<Platform, PlatformProduct[]>> {
-  const platforms: Platform[] = ["alibaba", "amazon", "ebay", "walmart", "google_shopping"];
+): Promise<Record<SerpApiPlatform, PlatformProduct[]>> {
+  const platforms: SerpApiPlatform[] = ["amazon", "ebay", "walmart", "google_shopping"];
 
   const results = await Promise.all(
     platforms.map((p) => searchPlatform(p, query)),
   );
 
   return {
-    alibaba: results[0]!,
-    amazon: results[1]!,
-    ebay: results[2]!,
-    walmart: results[3]!,
-    google_shopping: results[4]!,
+    amazon: results[0]!,
+    ebay: results[1]!,
+    walmart: results[2]!,
+    google_shopping: results[3]!,
   };
+}
+
+// ─── Google Shopping: wholesale + local variants ────────────────────
+
+function mapGoogleShoppingAs(
+  data: Record<string, any>,
+  platform: "wholesale" | "local_retail",
+): PlatformProduct[] {
+  const results: any[] = data.shopping_results ?? data.organic_results ?? [];
+  return results.slice(0, env.SERPAPI_RESULTS_PER_PAGE).map((item) => {
+    const rawPrice = item.extracted_price ?? item.price;
+    const price = parsePrice(rawPrice);
+    return {
+      platform,
+      external_id: item.product_id ?? item.position?.toString(),
+      title: item.title ?? "Untitled",
+      price_raw: price.value ?? (item.extracted_price ? parseFloat(String(item.extracted_price)) : null),
+      price_formatted: price.formatted,
+      currency: "USD",
+      rating: item.rating ? parseFloat(String(item.rating)) : null,
+      review_count: item.reviews ? parseInt(String(item.reviews).replace(/\D/g, ""), 10) || null : null,
+      seller_name: item.source ?? undefined,
+      product_url: item.link ?? undefined,
+      image_url: item.thumbnail ?? undefined,
+      source_domain: item.source ?? undefined,
+    };
+  });
+}
+
+export async function searchGoogleShoppingWholesale(
+  query: string,
+): Promise<PlatformProduct[]> {
+  const queries = [
+    `${query} wholesale supplier bulk`,
+    `${query} import wholesale china factory`,
+  ];
+
+  try {
+    const results = await Promise.all(
+      queries.map((q) =>
+        callSerpApi({ engine: "google_shopping", q, gl: "us", hl: "en" })
+          .then((data) => mapGoogleShoppingAs(data, "wholesale"))
+          .catch((err) => {
+            console.error("SerpApi Google Shopping wholesale failed:", err);
+            return [] as PlatformProduct[];
+          }),
+      ),
+    );
+
+    const seen = new Set<string>();
+    const merged: PlatformProduct[] = [];
+    for (const batch of results) {
+      for (const p of batch) {
+        const key = p.title + "|" + (p.price_raw ?? "");
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(p);
+        }
+      }
+    }
+    return merged;
+  } catch (err) {
+    console.error("Google Shopping wholesale search failed:", err);
+    return [];
+  }
+}
+
+export async function searchGoogleShoppingLocal(
+  query: string,
+  countryCode: string,
+  langCode: string,
+): Promise<PlatformProduct[]> {
+  try {
+    const data = await callSerpApi({
+      engine: "google_shopping",
+      q: query,
+      gl: countryCode.toLowerCase(),
+      hl: langCode,
+    });
+    return mapGoogleShoppingAs(data, "local_retail");
+  } catch (err) {
+    console.error(`SerpApi Google Shopping local (${countryCode}) failed:`, err);
+    return [];
+  }
 }

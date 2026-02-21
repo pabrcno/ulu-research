@@ -1,6 +1,6 @@
 # Wholesale Research Platform — Implementation Plan
-**v2.0 · SerpApi-first architecture**
-> No vendor SDKs. One API key for all product + trend data.
+**v3.0 · SerpApi + Tavily dual-source architecture**
+> No vendor SDKs. SerpApi for product/trend data. Tavily for local retail + research. Dual-currency pricing.
 
 ---
 
@@ -17,9 +17,14 @@
 
 ## 1. Overview
 
-This document supersedes v1.0. The core architectural change is the removal of any direct Alibaba API integration. All product sourcing data — wholesale prices, retail reference prices, secondary market data — is fetched through SerpApi using its dedicated platform engines. This eliminates OAuth2 complexity, ISV approval requirements, and per-platform API keys.
+This document supersedes v2.0. Key architectural changes from v2.0:
 
-The system uses SerpApi as the single external data source for both product pricing (5 platforms in parallel) and Google Trends (4 data types). Tavily covers regulation and market research. Claude handles all LLM synthesis. One `SERPAPI_API_KEY` covers everything on the sourcing and trends side.
+1. **No Alibaba engine** — SerpApi does not support an `alibaba` engine. Wholesale sourcing is handled by a wholesale-focused Google Shopping search (`google_shopping` engine with "wholesale bulk lot" query terms).
+2. **Local retail via Tavily** — Tavily now serves a dual role: regulation/market research (unchanged) plus local retail price discovery for the user's target country. This gives local-market pricing that US-centric SerpApi engines cannot provide.
+3. **Dual-currency pricing** — All prices are displayed in both USD and the user's local currency. Exchange rates are fetched once per session from a free API (open.er-api.com, no key needed).
+4. **LLM-based price classification** — Instead of hardcoding `price_type` per platform, Claude classifies each listing as wholesale/retail/variable based on listing signals (title, price level, MOQ, seller type).
+
+The system uses **6 data sources** for product sourcing: 5 SerpApi engines in parallel (wholesale Google Shopping, Amazon, eBay, Walmart, standard Google Shopping) plus 1 Tavily-powered local retail search. Google Trends uses 4 SerpApi calls. Regulation and market research use Tavily. Claude handles all LLM synthesis.
 
 ---
 
@@ -27,25 +32,49 @@ The system uses SerpApi as the single external data source for both product pric
 
 ### 2.1 SerpApi — Product Sourcing + Trends
 
-SerpApi is the only product data provider. It covers 5 sourcing platforms plus 4 Google Trends data types, all under a single API key with a unified JSON response format.
+SerpApi provides structured product data from 4 retail platforms plus a wholesale-focused Google Shopping search, all under a single API key. It also handles Google Trends.
 
-| Platform | Engine | Data Purpose | Price Type | Notes |
+> **Note:** SerpApi does *not* have an Alibaba engine. Wholesale data comes from Google Shopping with wholesale-oriented query terms, which surfaces DHgate storefronts, bulk suppliers, and wholesale distributors.
+
+| Source | Engine | Query Strategy | Data Purpose | Notes |
 |---|---|---|---|---|
-| Alibaba | `alibaba` | Wholesale floor price, MOQ, suppliers | Bulk / unit | Primary sourcing source |
-| Amazon | `amazon` | Retail ceiling, brand landscape, reviews | Retail each | Best retail reference |
-| eBay | `ebay` | Secondary market, lot listings, used prices | Variable | Arbitrage signals |
-| Walmart | `walmart` | Mass retail baseline, US market | Retail each | US consumer price floor |
-| Google Shopping | `google_shopping` | Cross-platform price index, local availability | Mixed | Catches other retailers |
+| Wholesale (Google Shopping) | `google_shopping` | `"{query} wholesale bulk lot"` | Wholesale floor price, bulk suppliers | Replaces non-existent Alibaba engine |
+| Amazon | `amazon` | `k={query}` | Retail ceiling, brand landscape, reviews | Use `k` param (not `search_term`) |
+| eBay | `ebay` | `_nkw={query}` | Secondary market, lot listings, used prices | Arbitrage signals |
+| Walmart | `walmart` | `query={query}` | Mass retail baseline, US market | US consumer price floor |
+| Google Shopping | `google_shopping` | `q={query}` | Cross-platform retail price index | Standard retail reference |
 
 Trends calls use the same `SERPAPI_API_KEY` with `engine=google_trends` and four `data_type` values: `TIMESERIES`, `GEO_MAP`, `RELATED_QUERIES`, `RELATED_TOPICS`.
 
-### 2.2 Tavily — Regulation + Market Research
+### 2.2 Tavily — Local Retail + Regulation + Market Research
 
-Tavily handles all web research: import regulation scraping (targeting `.gov` and customs domains) and local market landscape research. `search_depth=advanced` returns both an AI-generated answer and raw source URLs, which Claude synthesizes into structured reports with citations.
+Tavily serves three roles:
 
-### 2.3 Anthropic Claude — All LLM Work
+1. **Local retail pricing** (Phase 2) — 3 smart queries per search targeting the user's country (English + local language + comparison sites). Claude extracts structured product/price data from results. This provides the **local market baseline** that US-centric SerpApi engines cannot.
+2. **Import regulation research** (Phase 4) — Targeted queries using HS codes and regulatory flags, biased toward `.gov` domains.
+3. **Market landscape research** (Phase 5) — Competitor, channel, and positioning queries.
 
-Claude handles four distinct tasks: keyword extraction from raw user query, price synthesis across platforms, trend interpretation, and regulation/market report synthesis. All Claude calls are server-side only — no API keys reach the browser.
+`search_depth=advanced` returns both an AI-generated answer and raw source URLs.
+
+### 2.3 Exchange Rate API — Dual Currency
+
+`open.er-api.com` provides free USD-to-local exchange rates with no API key. Called once per sourcing request. Used to:
+- Convert SerpApi prices (USD) → local currency for display
+- Convert Tavily local retail prices (local currency) → USD for comparison
+- Output all summary prices (floor, ceiling, median) in both currencies
+
+Falls back to USD-only when target country is US or API is unreachable.
+
+### 2.4 Anthropic Claude — All LLM Work
+
+Claude handles five distinct tasks:
+1. **Keyword extraction** from raw user query
+2. **Price classification** — classifies each product listing as wholesale/retail/variable based on listing signals (not hardcoded by platform)
+3. **Price synthesis** across all 6 data sources with dual-currency output
+4. **Local retail extraction** — parses Tavily web results into structured product/price data
+5. **Trend/regulation/market report synthesis**
+
+All Claude calls are server-side only — no API keys reach the browser.
 
 ---
 
@@ -99,19 +128,21 @@ src/
 ├── context.ts                 ← env + shared clients
 ├── routers/
 │   ├── search.router.ts       ← keyword extraction + session init
-│   ├── sourcing.router.ts     ← multi-platform product search
+│   ├── sourcing.router.ts     ← multi-platform product search + local retail
 │   ├── trends.router.ts       ← google trends 4x data types
 │   ├── regulations.router.ts  ← tavily regulation research
 │   ├── market.router.ts       ← tavily market research
 │   └── opportunity.router.ts  ← cross-signal fusion
 ├── services/
-│   ├── serpapi.service.ts     ← ALL SerpApi calls (sourcing + trends)
-│   ├── tavily.service.ts      ← ALL Tavily calls
+│   ├── serpapi.service.ts     ← SerpApi calls (5 sourcing engines + trends)
+│   ├── tavily.service.ts      ← Tavily HTTP client (local retail + regulations + market)
 │   ├── claude.service.ts      ← Anthropic SDK wrapper
 │   └── geolocation.service.ts ← IP → country
 └── lib/
     ├── keyword-extractor.ts   ← LLM extraction pipeline
-    ├── price-synthesizer.ts   ← cross-platform price LLM logic
+    ├── price-synthesizer.ts   ← cross-platform price LLM logic (dual currency)
+    ├── local-retail.ts        ← Tavily local retail search + Claude extraction
+    ├── exchange-rate.ts       ← USD → local currency rate (open.er-api.com)
     └── opportunity-scorer.ts  ← final fusion logic
 ```
 
@@ -168,16 +199,19 @@ src/
 
 ---
 
-### Phase 2 — Multi-Platform Product Sourcing (SerpApi)
+### Phase 2 — Multi-Platform Product Sourcing (SerpApi + Tavily + Dual Currency)
 
-> Five SerpApi engines fire in parallel via `Promise.all()`. Claude synthesizes across all five into a `PriceAnalysis`.
+> 6 data sources fire in parallel: 5 SerpApi engines + 1 Tavily local retail search. Exchange rate fetched simultaneously. Claude classifies listings and synthesizes dual-currency price analysis.
 
 | # | Task | Description | Owner | Depends On |
 |---|---|---|---|---|
-| 2.1 | `serpapi.service.ts` — sourcing | `searchPlatform(engine, query, domain?)` method. Handles `alibaba`, `amazon`, `ebay`, `walmart`, `google_shopping` engines. Maps raw response to `PlatformProduct` schema. | BE | 0.3 |
-| 2.2 | `price-synthesizer.ts` | Feeds all 5 platform results to Claude: identify wholesale floor (Alibaba), retail ceiling (Amazon/Walmart), gross margin range, best source platform, arbitrage signals. | BE | 2.1, 1.1 |
-| 2.3 | `sourcing.router.ts` | tRPC procedure `sourcing.search(normalized_query)`: runs 5 platform searches in parallel, runs price synthesis, returns `{ platforms: PlatformProduct[][], priceAnalysis: PriceAnalysis }`. | BE | 2.2 |
-| 2.4 | `SourcingPanel.tsx` | Tab view per platform. Each tab shows product cards with title, price, rating, link. Summary bar shows wholesale floor vs retail ceiling and margin range. Uses shadcn `Tabs`, `Card`, `Badge`. | FE | 0.4, 2.3 |
+| 2.1 | `serpapi.service.ts` — sourcing | `searchPlatform(platform, query)` method. Handles `google_shopping_wholesale` (Google Shopping + "wholesale bulk lot" terms), `amazon` (param `k`), `ebay`, `walmart`, `google_shopping` engines. Maps raw responses to `PlatformProduct` schema. **No hardcoded `price_type`** — Claude classifies later. | BE | 0.3 |
+| 2.2 | `tavily.service.ts` | Generic Tavily HTTP client: `search(query, options)` → `{ answer?, results[] }`. Supports `include_domains[]`, `search_depth`, `max_results`, `include_answer`. Reused by Phases 4–5. | BE | 0.3 |
+| 2.3 | `exchange-rate.ts` | `getExchangeRate(countryCode)` → `{ currency_code, rate }`. Fetches from `open.er-api.com/v6/latest/USD` (free, no key). Maps country code → currency code via lookup table. Falls back to `{ "USD", 1 }`. | BE | 0.3 |
+| 2.4 | `local-retail.ts` | `searchLocalRetail(query, countryCode, countryName, currencyCode)`: builds 3 smart Tavily queries (English, local language, comparison sites), runs in parallel, feeds combined results to Claude to extract structured `PlatformProduct[]` with `price_raw` (USD), `price_local` (local currency), seller name, URL. Products tagged `platform: "local_retail"`. | BE | 2.2, 1.1 |
+| 2.5 | `price-synthesizer.ts` | Receives all 6 platform results + exchange rate. Claude prompt: (a) classifies each listing as wholesale/retail/variable from signals, (b) derives wholesale floor, retail ceiling, local retail median, (c) outputs all summary prices in **both USD and local currency**, (d) computes importable margin between wholesale floor and local retail median. | BE | 2.1, 2.4, 1.1 |
+| 2.6 | `sourcing.router.ts` | tRPC procedure `sourcing.search(normalized_query, country_code, country_name)`: fetches exchange rate + 5 SerpApi platforms + Tavily local retail **all in parallel**. Stamps `price_local` on SerpApi products using rate. Runs price synthesis. Returns `{ platforms, price_analysis, local_currency_code, exchange_rate }`. | BE | 2.5 |
+| 2.7 | `SourcingPanel.tsx` | Tab view: Summary + 6 platform tabs (Wholesale, Amazon, eBay, Walmart, Google Shopping, Local Retail). **Dual-currency display**: product cards show USD and local price side by side. Summary bar shows wholesale floor, retail ceiling, local retail median, margin range, best source — each in both currencies. Uses shadcn `Tabs`, `Card`, `Badge`. | FE | 0.4, 2.6 |
 
 ---
 
@@ -200,7 +234,7 @@ src/
 
 | # | Task | Description | Owner | Depends On |
 |---|---|---|---|---|
-| 4.1 | `tavily.service.ts` | `search(queries[], options)` method. Supports `include_domains[]`, `search_depth`, `include_answer`. Returns `TavilyResult[][]`. | BE | 0.3 |
+| 4.1 | `tavily.service.ts` | Already created in Phase 2.2. Reuse `search(query, options)` method. | BE | 2.2 |
 | 4.2 | Regulation query builder | Builds 5 queries: HS tariff duty rate, required certifications, prohibited variants, labeling rules, licensing/quota. Uses `regulatory_flags`, `import_regulations`, `impositive_regulations` from ProductMetadata. Each targets `.gov` domains via `include_domains`. | BE | 4.1, 1.2 |
 | 4.3 | Regulation LLM synthesis | Claude: parse all Tavily results into `RegulationReport` — `duty_rate_percent`, `required_certifications[]`, `prohibited_variants[]`, `labeling_requirements[]`, `sources[]`. Always includes disclaimer. | BE | 4.2, 1.1 |
 | 4.4 | `regulations.router.ts` | tRPC procedure `regulations.research(hs_code, regulatory_flags[], import_regulations[], impositive_regulations[], country_code)`: returns `RegulationReport`. | BE | 4.3 |
@@ -214,7 +248,7 @@ src/
 
 | # | Task | Description | Owner | Depends On |
 |---|---|---|---|---|
-| 5.1 | Market query builder | Builds 5 queries from `market_terms[]` + `country_code`: local retail prices, top competitors, best e-commerce channels, consumer demand, product positioning. | BE | 4.1, 1.2 |
+| 5.1 | Market query builder | Builds 5 queries from `market_terms[]` + `country_code`: top competitors, best e-commerce channels, consumer demand, product positioning. | BE | 2.2, 1.2 |
 | 5.2 | Market LLM synthesis | Claude: produce `MarketReport` — `competition_level`, `top_competitors[]`, `top_channels[]`, `positioning_tip`, `summary`. | BE | 5.1, 1.1 |
 | 5.3 | `market.router.ts` | tRPC procedure `market.research(market_terms[], country_code)`: returns `MarketReport`. | BE | 5.2 |
 | 5.4 | `opportunity-scorer.ts` | Fuses `PriceAnalysis` + `TrendReport` + `RegulationReport` + `MarketReport` into `OpportunityReport` via Claude: `opportunity_score` 0–100, `estimated_margin_pct`, `best_source_platform`, `best_launch_month`, `keyword_gaps[]`, `variant_suggestions[]`, `risk_flags[]`. | BE | 2.2, 3.2, 4.3, 5.2 |
@@ -226,7 +260,7 @@ src/
 
 ## 6. Environment Variables
 
-> Only 4 real API keys needed. `SERPAPI_API_KEY` covers all 5 platform engines and all 4 Trends data types. No Alibaba key, no per-platform tokens.
+> Only 4 real API keys needed. `SERPAPI_API_KEY` covers all 5 sourcing engines and all 4 Trends data types. Exchange rate API is free and keyless.
 
 ### `apps/api/.env`
 
@@ -253,7 +287,7 @@ SERPAPI_TRENDS_DATE=today 12-m
 
 | Variable | Example | Description |
 |---|---|---|
-| `SERPAPI_API_KEY` | `abc123def456...` | Single key — covers Alibaba, Amazon, eBay, Walmart, Google Shopping, and Google Trends |
+| `SERPAPI_API_KEY` | `abc123def456...` | Single key — covers Amazon, eBay, Walmart, Google Shopping (×2 with wholesale terms), and Google Trends |
 | `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | Unified endpoint for all engines |
 | `SERPAPI_RESULTS_PER_PAGE` | `10` | Products per platform per search |
 | `SERPAPI_TRENDS_DATE` | `today 12-m` | Date range for Trends TIMESERIES calls |
@@ -304,9 +338,30 @@ VITE_API_URL=http://localhost:3001
 
 ## 7. Key Technical Notes
 
-### Why SerpApi Instead of Direct Alibaba API
+### Why Not Direct Alibaba API
 
-The Alibaba ICBU Open API requires ISV partner approval (weeks-long process), OAuth2 user-level token management, MD5 request signing, and separate `app_key` + `app_secret` per environment. SerpApi's `alibaba` engine provides equivalent product listing data — title, price, MOQ, supplier, rating — with a single HTTP GET and no approval process. The same key also covers Amazon, eBay, Walmart, Google Shopping, and Google Trends, making it the only product/trend credential in the system.
+SerpApi does **not** support an `alibaba` engine — this was an incorrect assumption in v2.0 that caused 400 errors at runtime. The Alibaba ICBU Open API requires ISV partner approval (weeks-long process), OAuth2, and MD5 request signing, making it impractical.
+
+**Solution:** Wholesale pricing is sourced via Google Shopping with wholesale-oriented query terms (`"{query} wholesale bulk lot"`). This surfaces DHgate storefronts, wholesale distributors, and bulk suppliers that list on Google Shopping. Combined with LLM-based price classification (instead of hardcoding by platform), this provides effective wholesale vs retail price separation.
+
+### Dual-Currency Architecture
+
+All prices flow through in both USD and the user's local currency:
+
+```
+Exchange rate fetched once per request (open.er-api.com, free)
+        │
+        ├──→ SerpApi results (USD native)
+        │    └── price_local = price_raw × rate
+        │
+        ├──→ Tavily local retail (local currency native)
+        │    └── price_raw = price_local ÷ rate
+        │
+        └──→ Price synthesis outputs all summaries in both currencies
+             └── Frontend displays: "$4.50 / CLP 4,200"
+```
+
+When target country is US, `rate = 1` and only USD is shown.
 
 ### Parallel Execution Strategy
 
@@ -315,24 +370,34 @@ After Phase 1 (keyword extraction) resolves, Phases 2–5 all fire simultaneousl
 ```
 keyword extraction resolves
         │
-        ├──→ sourcing.search()      (Promise.all — 5 platforms)
-        ├──→ trends.get()           (Promise.all — 4 data types)
-        ├──→ regulations.research() (Promise.all — 5 Tavily queries)
-        └──→ market.research()      (Promise.all — 5 Tavily queries)
+        ├──→ sourcing.search()
+        │    ├── exchange rate        (1 HTTP call)
+        │    ├── 5 SerpApi platforms  (Promise.all — 5 engines)
+        │    └── Tavily local retail  (3 queries + Claude extraction)
+        │    └── price synthesis      (after all 6 sources resolve)
+        │
+        ├──→ trends.get()             (Promise.all — 4 data types)
+        ├──→ regulations.research()   (Promise.all — 5 Tavily queries)
+        └──→ market.research()        (Promise.all — 5 Tavily queries)
                     │
                     └──→ opportunity.synthesize()  (waits for all 4)
 ```
 
 On the frontend, all four TanStack Query hooks are `enabled: !!productMetadata`. Opportunity synthesis uses a fifth hook enabled only when all four sub-reports have resolved.
 
-### SerpApi Credit Efficiency
+### Credit Efficiency
 
-Each user search consumes a maximum of **9 SerpApi credits**: 5 for platform sourcing + 4 for Trends. At SerpApi's Developer tier ($75/month, 5,000 searches), this supports ~555 full research sessions per month.
+Each user search consumes:
+- **SerpApi**: 9 credits (5 sourcing + 4 trends). Developer tier ($75/month, 5,000 searches) supports ~555 sessions/month.
+- **Tavily**: 8 credits (3 local retail + 5 regulation/market). Researcher tier (1,000 free/month) supports ~125 sessions/month.
+- **Claude**: ~6 calls (extraction + classification + synthesis + trends + regulation + market).
+- **Exchange rate**: 1 free call (no quota).
 
 Cache aggressively:
 - Trend data → valid for 24h
 - Product listings → valid for 1h
 - Regulation data → valid for 7 days
+- Exchange rates → valid for 1h
 
 ### Regulation Accuracy Disclaimer
 

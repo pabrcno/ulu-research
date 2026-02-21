@@ -1,41 +1,41 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { ChatAnthropic } from "@langchain/anthropic";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { env } from "@repo/env/server";
-
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+import type { z } from "zod";
 
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 1000;
 
-export async function complete<T>(opts: {
+function createModel(maxTokens: number) {
+  return new ChatAnthropic({
+    model: env.ANTHROPIC_MODEL,
+    apiKey: env.ANTHROPIC_API_KEY,
+    temperature: 0,
+    maxTokens,
+  });
+}
+
+export async function structuredComplete<T extends z.ZodType>(opts: {
   system: string;
   user: string;
+  schema: T;
   maxTokens?: number;
-}): Promise<T> {
-  const { system, user, maxTokens = 2048 } = opts;
+}): Promise<z.infer<T>> {
+  const { system, user, schema, maxTokens = 2048 } = opts;
+
+  const structuredModel = createModel(maxTokens).withStructuredOutput(schema, {
+    name: "structured_response",
+  });
 
   let lastError: unknown;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const response = await client.messages.create({
-        model: env.ANTHROPIC_MODEL,
-        max_tokens: maxTokens,
-        system,
-        messages: [{ role: "user", content: user }],
-      });
+      const result = await structuredModel.invoke(
+        [new SystemMessage(system), new HumanMessage(user)],
+      );
 
-      const textBlock = response.content.find((b) => b.type === "text");
-      if (!textBlock || textBlock.type !== "text") {
-        throw new Error("No text block in Claude response");
-      }
-
-      const raw = textBlock.text.trim();
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error(`No JSON object found in Claude response: ${raw.slice(0, 200)}`);
-      }
-
-      return JSON.parse(jsonMatch[0]) as T;
+      return result;
     } catch (err: any) {
       lastError = err;
 

@@ -26,6 +26,10 @@ export const env = createEnv({
     SERPAPI_RESULTS_PER_PAGE: z.coerce.number().int().positive().default(10),
     SERPAPI_TRENDS_DATE: z.string().default("today 12-m"),
 
+    // AliExpress Affiliate API (optional — falls back to Tavily wholesale)
+    ALIEXPRESS_APP_KEY: z.string().optional(),
+    ALIEXPRESS_APP_SECRET: z.string().optional(),
+
     // Tavily
     TAVILY_API_KEY: z.string().min(1),
     TAVILY_SEARCH_DEPTH: z.enum(["basic", "advanced"]).default("advanced"),

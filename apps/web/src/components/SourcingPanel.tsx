@@ -12,36 +12,55 @@ import {
   ShoppingCart,
   Loader2,
   AlertCircle,
+  MapPin,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { PlatformProduct, Platform, SourcingSearchResponse } from "@repo/types";
 
 const PLATFORM_LABELS: Record<Platform, string> = {
-  alibaba: "Alibaba",
+  aliexpress: "AliExpress",
+  wholesale: "Wholesale",
   amazon: "Amazon",
   ebay: "eBay",
   walmart: "Walmart",
   google_shopping: "Google Shopping",
+  local_retail: "Local Retail",
 };
 
 const PLATFORM_COLORS: Record<Platform, string> = {
-  alibaba: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  aliexpress: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  wholesale: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   amazon: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   ebay: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   walmart: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
   google_shopping: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  local_retail: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
 };
 
 interface SourcingPanelProps {
   normalizedQuery: string;
+  countryCode: string;
+  countryName: string;
   enabled: boolean;
 }
 
-export function SourcingPanel({ normalizedQuery, enabled }: SourcingPanelProps) {
+function formatDualPrice(
+  usd: number | null | undefined,
+  local: number | null | undefined,
+  localCurrency: string,
+): string {
+  if (usd == null && local == null) return "N/A";
+  const usdStr = usd != null ? `$${usd.toFixed(2)}` : "—";
+  if (!localCurrency || localCurrency === "USD") return usdStr;
+  const localStr = local != null ? `${localCurrency} ${local.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—";
+  return `${usdStr} / ${localStr}`;
+}
+
+export function SourcingPanel({ normalizedQuery, countryCode, countryName, enabled }: SourcingPanelProps) {
   const [activeTab, setActiveTab] = useState<string>("summary");
 
   const sourcing = trpc.sourcing.search.useQuery(
-    { normalized_query: normalizedQuery },
+    { normalized_query: normalizedQuery, country_code: countryCode, country_name: countryName },
     { enabled, staleTime: 60 * 60 * 1000, retry: 1 },
   );
 
@@ -53,7 +72,7 @@ export function SourcingPanel({ normalizedQuery, enabled }: SourcingPanelProps) 
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-3" />
           <span className="text-muted-foreground">
-            Searching 5 platforms in parallel...
+            Searching 7 sources in parallel (wholesale, retail, local)...
           </span>
         </CardContent>
       </Card>
@@ -73,7 +92,7 @@ export function SourcingPanel({ normalizedQuery, enabled }: SourcingPanelProps) 
 
   if (!sourcing.data) return null;
 
-  const { platforms, price_analysis } = sourcing.data;
+  const { platforms, price_analysis, local_currency_code, exchange_rate } = sourcing.data;
 
   return (
     <Card>
@@ -81,10 +100,15 @@ export function SourcingPanel({ normalizedQuery, enabled }: SourcingPanelProps) 
         <CardTitle className="flex items-center gap-2 text-lg">
           <ShoppingCart className="h-5 w-5" />
           Product Sourcing
+          {local_currency_code && local_currency_code !== "USD" && (
+            <Badge variant="outline" className="text-xs font-normal ml-auto">
+              1 USD = {exchange_rate.toFixed(2)} {local_currency_code}
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <PriceSummaryBar analysis={price_analysis} />
+        <PriceSummaryBar analysis={price_analysis} localCurrency={local_currency_code} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex flex-wrap h-auto gap-1">
@@ -107,7 +131,7 @@ export function SourcingPanel({ normalizedQuery, enabled }: SourcingPanelProps) 
 
           {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
             <TabsContent key={p} value={p}>
-              <PlatformProductGrid products={platforms[p]} platform={p} />
+              <PlatformProductGrid products={platforms[p]} platform={p} localCurrency={local_currency_code} />
             </TabsContent>
           ))}
         </Tabs>
@@ -116,24 +140,35 @@ export function SourcingPanel({ normalizedQuery, enabled }: SourcingPanelProps) 
   );
 }
 
-function PriceSummaryBar({ analysis }: { analysis: SourcingSearchResponse["price_analysis"] }) {
+function PriceSummaryBar({
+  analysis,
+  localCurrency,
+}: {
+  analysis: SourcingSearchResponse["price_analysis"];
+  localCurrency: string;
+}) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
       <SummaryCell
         label="Wholesale Floor"
-        value={analysis.wholesale_floor != null ? `$${analysis.wholesale_floor.toFixed(2)}` : "N/A"}
+        value={formatDualPrice(analysis.wholesale_floor, analysis.wholesale_floor_local, localCurrency)}
         icon={<TrendingDown className="h-4 w-4 text-green-600" />}
       />
       <SummaryCell
         label="Retail Ceiling"
-        value={analysis.retail_ceiling != null ? `$${analysis.retail_ceiling.toFixed(2)}` : "N/A"}
+        value={formatDualPrice(analysis.retail_ceiling, analysis.retail_ceiling_local, localCurrency)}
         icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
+      />
+      <SummaryCell
+        label="Local Retail Median"
+        value={formatDualPrice(analysis.local_retail_median, analysis.local_retail_median_local, localCurrency)}
+        icon={<MapPin className="h-4 w-4 text-purple-600" />}
       />
       <SummaryCell
         label="Margin Range"
         value={
           analysis.gross_margin_pct_min != null && analysis.gross_margin_pct_max != null
-            ? `${analysis.gross_margin_pct_min.toFixed(0)}%–${analysis.gross_margin_pct_max.toFixed(0)}%`
+            ? `${analysis.gross_margin_pct_min.toFixed(0)}% – ${analysis.gross_margin_pct_max.toFixed(0)}%`
             : "N/A"
         }
         icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
@@ -170,9 +205,11 @@ function SummaryCell({
 function PlatformProductGrid({
   products,
   platform,
+  localCurrency,
 }: {
   products: PlatformProduct[];
   platform: Platform;
+  localCurrency: string;
 }) {
   if (products.length === 0) {
     return (
@@ -185,13 +222,13 @@ function PlatformProductGrid({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {products.map((product, idx) => (
-        <ProductCard key={product.external_id ?? idx} product={product} />
+        <ProductCard key={product.external_id ?? idx} product={product} localCurrency={localCurrency} />
       ))}
     </div>
   );
 }
 
-function ProductCard({ product }: { product: PlatformProduct }) {
+function ProductCard({ product, localCurrency }: { product: PlatformProduct; localCurrency: string }) {
   return (
     <div className="rounded-lg border p-3 flex gap-3">
       {product.image_url && (
@@ -208,13 +245,12 @@ function ProductCard({ product }: { product: PlatformProduct }) {
         </h4>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-bold">{product.price_formatted}</span>
-          {product.price_type && (
-            <Badge
-              variant="outline"
-              className={`text-xs ${PLATFORM_COLORS[product.platform]}`}
-            >
-              {product.price_type}
+          <span className="text-sm font-bold">
+            {formatDualPrice(product.price_raw, product.price_local, localCurrency)}
+          </span>
+          {product.source_domain && (
+            <Badge variant="outline" className="text-xs">
+              {product.source_domain}
             </Badge>
           )}
           {product.moq != null && (
@@ -241,6 +277,9 @@ function ProductCard({ product }: { product: PlatformProduct }) {
             </span>
           )}
           {product.condition && <span>{product.condition}</span>}
+          {product.sales_volume && (
+            <span>{product.sales_volume} sold</span>
+          )}
         </div>
 
         {product.product_url && (

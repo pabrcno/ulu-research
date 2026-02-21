@@ -192,6 +192,8 @@ export function Research() {
 
             <SourcingPanel
               normalizedQuery={meta.normalized_query}
+              countryCode={session.geolocation.country_code}
+              countryName={session.geolocation.country_name}
               enabled={!!meta}
             />
 

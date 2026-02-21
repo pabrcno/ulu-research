@@ -17,6 +17,15 @@ async function main() {
 
   server.get("/ping", async () => ({ status: "ok", timestamp: Date.now() }));
 
+  const shutdown = async (signal: string) => {
+    console.log(`Received ${signal}, shutting down...`);
+    await server.close();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+
   await server.listen({ port: env.PORT, host: "0.0.0.0" });
   console.log(`API running on http://localhost:${env.PORT}`);
 }
