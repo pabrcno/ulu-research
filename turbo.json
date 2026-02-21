@@ -1,6 +1,25 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL",
+    "SERPAPI_API_KEY",
+    "SERPAPI_BASE_URL",
+    "SERPAPI_RESULTS_PER_PAGE",
+    "SERPAPI_TRENDS_DATE",
+    "ALIEXPRESS_APP_KEY",
+    "ALIEXPRESS_APP_SECRET",
+    "TAVILY_API_KEY",
+    "TAVILY_SEARCH_DEPTH",
+    "TAVILY_MAX_RESULTS",
+    "TAVILY_INCLUDE_ANSWER",
+    "DATABASE_URL",
+    "PORT",
+    "NODE_ENV",
+    "CORS_ORIGIN",
+    "GEOLOCATION_API_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
